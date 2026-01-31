@@ -21,8 +21,7 @@ const MASTER_CONFIG_URL = 'https://raw.githubusercontent.com/zainforofficeuse-by
 // Utility: SHA-256 Hashing for Passwords
 const hashPassword = async (password: string) => {
   if (!password) return '';
-  // If it already looks like a hash (64 chars), don't re-hash
-  if (password.length === 64) return password;
+  if (password.length === 64) return password; // Already hashed
   const msgUint8 = new TextEncoder().encode(password);
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -101,11 +100,9 @@ const App: React.FC = () => {
       const text = await response.text();
       const scriptUrlMatch = text.match(/https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec/);
       if (scriptUrlMatch) {
-        setSettings(prev => ({
-          ...prev,
-          cloud: { ...prev.cloud, scriptUrl: scriptUrlMatch[0], isConnected: true }
-        }));
-        return scriptUrlMatch[0];
+        const url = scriptUrlMatch[0];
+        setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, scriptUrl: url, isConnected: true } }));
+        return url;
       }
     } catch (err) { console.error("Config fetch error:", err); }
     return null;
@@ -138,18 +135,12 @@ const App: React.FC = () => {
           if (d.accounts) setAccounts(prev => [...prev.filter(a => a.companyId !== activeCompanyId), ...d.accounts]);
           if (d.products) setProducts(prev => [...prev.filter(p => p.companyId !== activeCompanyId), ...d.products]);
           if (d.entities) setEntities(prev => [...prev.filter(e => e.companyId !== activeCompanyId), ...d.entities]);
+          if (d.companies) setCompanies(prev => [...prev.filter(c => c.id !== activeCompanyId), ...d.companies]);
           if (d.users) setUsers(prev => [
             ...prev.filter(u => u.companyId !== activeCompanyId && u.id !== 'system-sa'), 
             ...d.users
           ]);
         }
-      } else if (action === 'TRIGGER_BACKUP') {
-        await fetch(url, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'TRIGGER_BACKUP' })
-        });
       } else if (action === 'REMOTE_LOGIN') {
         const response = await fetch(`${url}?action=FIND_USER&email=${payload.email}`);
         const result = await response.json();
@@ -162,6 +153,43 @@ const App: React.FC = () => {
     } finally {
       setTimeout(() => setIsSyncing(false), 800);
     }
+    return null;
+  };
+
+  const handleRemoteLogin = async (email: string, password: string) => {
+    const remoteUser = await syncToCloud('REMOTE_LOGIN', { email });
+    if (!remoteUser) return null;
+
+    const inputHash = await hashPassword(password);
+    // Legacy support: Check both hashed and plain text
+    if (remoteUser.password === inputHash || remoteUser.password === password) {
+      // 1. Add user to local state
+      setUsers(prev => {
+         const exists = prev.find(u => u.id === remoteUser.id);
+         return exists ? prev : [...prev, remoteUser];
+      });
+
+      // 2. Immediate Full Data Pull for this Company
+      const url = settings.cloud.scriptUrl || await fetchMasterConfig();
+      if (url) {
+        const response = await fetch(`${url}?action=SYNC_PULL&companyId=${remoteUser.companyId}`);
+        const result = await response.json();
+        if (result.status === 'success' && result.data) {
+          const d = result.data;
+          if (d.transactions) setTransactions(prev => [...prev.filter(t => t.companyId !== remoteUser.companyId), ...d.transactions]);
+          if (d.accounts) setAccounts(prev => [...prev.filter(a => a.companyId !== remoteUser.companyId), ...d.accounts]);
+          if (d.products) setProducts(prev => [...prev.filter(p => p.companyId !== remoteUser.companyId), ...d.products]);
+          if (d.entities) setEntities(prev => [...prev.filter(e => e.companyId !== remoteUser.companyId), ...d.entities]);
+          if (d.companies) setCompanies(prev => [...prev.filter(c => c.id !== remoteUser.companyId), ...d.companies]);
+          if (d.users) setUsers(prev => [...prev.filter(u => u.companyId !== remoteUser.companyId && u.id !== 'system-sa'), ...d.users]);
+        }
+      }
+
+      setCurrentUserId(remoteUser.id);
+      setIsLocked(false);
+      return remoteUser.id;
+    }
+    return null;
   };
 
   useEffect(() => {
@@ -242,35 +270,6 @@ const App: React.FC = () => {
     }));
   };
 
-  const handleRemoteLogin = async (email: string, password: string) => {
-    const remoteUser = await syncToCloud('REMOTE_LOGIN', { email });
-    if (!remoteUser) return null;
-
-    const inputHash = await hashPassword(password);
-    if (remoteUser.password === inputHash) {
-      setUsers(prev => {
-         const exists = prev.find(u => u.id === remoteUser.id);
-         if (exists) return prev;
-         return [...prev, remoteUser];
-      });
-      // Important: Change active company before pull
-      setCurrentUserId(remoteUser.id);
-      setIsLocked(false);
-      // Logic for pull happens after state is set, but we can trigger it here manually too
-      const response = await fetch(`${settings.cloud.scriptUrl}?action=SYNC_PULL&companyId=${remoteUser.companyId}`);
-      const result = await response.json();
-      if (result.status === 'success' && result.data) {
-        const d = result.data;
-        if (d.transactions) setTransactions(prev => [...prev.filter(t => t.companyId !== remoteUser.companyId), ...d.transactions]);
-        if (d.accounts) setAccounts(prev => [...prev.filter(a => a.companyId !== remoteUser.companyId), ...d.accounts]);
-        if (d.products) setProducts(prev => [...prev.filter(p => p.companyId !== remoteUser.companyId), ...d.products]);
-        if (d.entities) setEntities(prev => [...prev.filter(e => e.companyId !== remoteUser.companyId), ...d.entities]);
-      }
-      return remoteUser.id;
-    }
-    return null;
-  };
-
   const currencySymbol = useMemo(() => CURRENCIES.find(c => c.code === settings.currency)?.symbol || 'Rs.', [settings.currency]);
 
   if (!isInitialized) return null;
@@ -288,7 +287,7 @@ const App: React.FC = () => {
 
   return (
     <div className="h-screen w-full text-slate-900 dark:text-white max-w-6xl mx-auto relative overflow-hidden flex flex-col md:flex-row bg-white dark:bg-[#030712]">
-      {/* Sidebar (Rest of UI) */}
+      {/* Sidebar */}
       <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-black border-r border-emerald-500/5 p-8 z-50">
           <div className="mb-10 flex flex-col gap-4">
             <h1 className="text-2xl font-black tracking-tightest">TRACKR<span className="text-emerald-500">.</span></h1>
