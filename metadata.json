@@ -1,5 +1,7 @@
 {
   "name": "TRACKR.",
   "description": "A high-end financial tracking application with Apple-inspired aesthetics, real-time analytics, and persistent offline storage.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera"
+  ]
 }

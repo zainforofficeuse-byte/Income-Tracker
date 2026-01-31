@@ -74,6 +74,7 @@ export interface Product {
   sellingPrice: number;
   stock: number;
   minStock: number;
+  imageUrl?: string; // Supporting product photos
 }
 
 export interface Entity {

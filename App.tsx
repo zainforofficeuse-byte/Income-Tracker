@@ -14,10 +14,8 @@ import UserManagement from './components/UserManagement';
 import AuthGuard from './components/AuthGuard';
 import ProfileModal from './components/ProfileModal';
 
-const STORAGE_KEY = 'trackr_enterprise_v3';
-
-// PASTE YOUR GITHUB RAW LINK HERE (e.g., https://raw.githubusercontent.com/user/repo/main/config.txt)
-const MASTER_CONFIG_URL = 'https://raw.githubusercontent.com/zainforofficeuse-byte/Income-Tracker/refs/heads/main/config.txt'; 
+const STORAGE_KEY = 'trackr_enterprise_v6';
+const MASTER_CONFIG_URL = ''; 
 
 const INITIAL_COMPANIES: Company[] = [
   { id: 'company-azeem', name: 'Azeem Solutions', registrationDate: new Date().toISOString(), status: 'ACTIVE' }
@@ -33,7 +31,9 @@ const App: React.FC = () => {
   const [companies, setCompanies] = useState<Company[]>(INITIAL_COMPANIES);
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([
+    { id: 'acc-1', companyId: 'company-azeem', name: 'Cash in Hand', balance: 0, color: '#6366f1', type: 'CASH' }
+  ]);
   const [products, setProducts] = useState<Product[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
   
@@ -47,8 +47,8 @@ const App: React.FC = () => {
 
   const [settings, setSettings] = useState<UserSettings>({
     currency: 'PKR', 
-    darkMode: true, 
-    activeAccountId: '', 
+    darkMode: false, 
+    activeAccountId: 'acc-1', 
     companyName: 'TRACKR.', 
     inventoryCategories: DEFAULT_PRODUCT_CATEGORIES, 
     remoteDbConnected: false,
@@ -76,7 +76,6 @@ const App: React.FC = () => {
   const companyAccounts = useMemo(() => accounts.filter(a => a.companyId === activeCompanyId), [accounts, activeCompanyId]);
   const companyProducts = useMemo(() => products.filter(p => p.companyId === activeCompanyId), [products, activeCompanyId]);
   const companyEntities = useMemo(() => entities.filter(e => e.companyId === activeCompanyId), [entities, activeCompanyId]);
-  const companyUsers = useMemo(() => users.filter(u => u.companyId === activeCompanyId), [users, activeCompanyId]);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -89,99 +88,56 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // MASTER BOOT: Load Script URL from GitHub
   const bootFromGitHub = async (url: string) => {
     if (!url || !isOnline) return;
     try {
       const res = await fetch(url);
       const scriptUrl = (await res.text()).trim();
       if (scriptUrl.startsWith('http')) {
-        setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, scriptUrl } }));
-        console.log("Remote Script URL Loaded:", scriptUrl);
+        setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, scriptUrl, isConnected: true } }));
         return scriptUrl;
       }
-    } catch (e) {
-      console.error("GitHub Config Error:", e);
-    }
+    } catch (e) { console.error("GitHub Boot Error:", e); }
     return null;
   };
 
-  // DEEP SYNC: Restore Everything
   const restoreEverything = async (overrideUrl?: string) => {
     const targetUrl = overrideUrl || settings.cloud.scriptUrl;
     if (!targetUrl || !isOnline) return;
     setIsSyncing(true);
     try {
-      // 1. Pull System Registry (Companies & Users)
-      const sysRes = await fetch(targetUrl, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'pull_system' })
-      });
+      const sysRes = await fetch(targetUrl, { method: 'POST', body: JSON.stringify({ action: 'pull_system' }) });
       const sysData = await sysRes.json();
       if (sysData.status === 'success') {
         setCompanies(sysData.companies);
         setUsers(sysData.users);
       }
-
-      // 2. Pull Data for current context
-      const txRes = await fetch(targetUrl, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'pull', companyId: activeCompanyId })
-      });
+      const txRes = await fetch(targetUrl, { method: 'POST', body: JSON.stringify({ action: 'pull', companyId: activeCompanyId }) });
       const txData = await txRes.json();
       if (txData.status === 'success') {
-        setTransactions(prev => [
-          ...prev.filter(t => t.companyId !== activeCompanyId),
-          ...txData.transactions
-        ]);
+        setTransactions(prev => [...prev.filter(t => t.companyId !== activeCompanyId), ...txData.transactions]);
       }
       setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, isConnected: true } }));
-    } catch (e) {
-      console.error("Restore failed:", e);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // SYSTEM PUSH (Super Admin Only)
-  const pushSystemState = async () => {
-    if (!settings.cloud.scriptUrl || !isOnline || !isSuper) return;
-    try {
-      await fetch(settings.cloud.scriptUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        body: JSON.stringify({ action: 'sync_system', companies, users })
-      });
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Restore failed:", e); } finally { setIsSyncing(false); }
   };
 
   useEffect(() => {
     const init = async () => {
       const saved = localStorage.getItem(STORAGE_KEY);
-      let initialSettings = settings;
+      let mergedSettings = settings;
       if (saved) {
         const p = JSON.parse(saved);
         setCompanies(p.companies || INITIAL_COMPANIES);
         setUsers(p.users || INITIAL_USERS);
         setTransactions(p.transactions || []);
-        setAccounts(p.accounts || []);
+        setAccounts(p.accounts || accounts);
         setProducts(p.products || []);
         setEntities(p.entities || []);
-        if (p.settings) {
-          initialSettings = { ...settings, ...p.settings };
-          setSettings(initialSettings);
-        }
+        if (p.settings) mergedSettings = { ...settings, ...p.settings };
       }
-
-      // Auto-fetch from GitHub if URL exists
-      const remoteUrl = initialSettings.cloud.remoteConfigUrl || MASTER_CONFIG_URL;
-      if (remoteUrl) {
-        const fetchedScriptUrl = await bootFromGitHub(remoteUrl);
-        if (fetchedScriptUrl) {
-           // Optional: Auto restore on first load if cloud is connected
-           // restoreEverything(fetchedScriptUrl);
-        }
-      }
+      const finalGithub = mergedSettings.cloud.remoteConfigUrl || MASTER_CONFIG_URL;
+      if (finalGithub) await bootFromGitHub(finalGithub);
+      else setSettings(mergedSettings);
       setIsInitialized(true);
     };
     init();
@@ -190,7 +146,6 @@ const App: React.FC = () => {
   useEffect(() => {
     if (isInitialized) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ companies, users, transactions, accounts, products, entities, settings }));
-      if (isSuper && settings.cloud.isConnected) pushSystemState();
     }
     if (settings.darkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
@@ -198,15 +153,7 @@ const App: React.FC = () => {
 
   const addTransaction = (tx: any) => {
     if (!currentUser) return;
-    const newTx = { 
-      ...tx, 
-      id: crypto.randomUUID(), 
-      companyId: activeCompanyId, 
-      createdBy: currentUser.id,
-      syncStatus: 'PENDING',
-      version: 1,
-      updatedAt: new Date().toISOString()
-    };
+    const newTx = { ...tx, id: crypto.randomUUID(), companyId: activeCompanyId, createdBy: currentUser.id, syncStatus: 'PENDING', version: 1, updatedAt: new Date().toISOString() };
     setTransactions(prev => [newTx, ...prev]);
     if (tx.paymentStatus === 'PAID') {
       setAccounts(prev => prev.map(a => a.id === tx.accountId ? { ...a, balance: a.balance + (tx.type === TransactionType.INCOME ? tx.amount : -tx.amount) } : a));
@@ -225,12 +172,19 @@ const App: React.FC = () => {
 
   const currencySymbol = useMemo(() => CURRENCIES.find(c => c.code === settings.currency)?.symbol || 'Rs.', [settings.currency]);
 
+  // Status Indicator logic: Amber=Offline, Blue=Local, Green=Cloud
+  const connectionStatus = useMemo(() => {
+    if (!isOnline) return { label: 'Offline', color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', bullet: 'bg-amber-500' };
+    if (settings.cloud.isConnected && settings.cloud.scriptUrl) return { label: 'Cloud Active', color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', bullet: 'bg-emerald-500' };
+    return { label: 'Local Only', color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-900/20', bullet: 'bg-indigo-500' };
+  }, [isOnline, settings.cloud.isConnected, settings.cloud.scriptUrl]);
+
   if (!isInitialized) return null;
   if (isLocked) return <AuthGuard companies={companies} users={users} onUnlock={(userId) => { setCurrentUserId(userId); setIsLocked(false); }} />;
 
   return (
     <div className="h-screen w-full text-slate-900 dark:text-slate-100 max-w-md mx-auto relative overflow-hidden flex flex-col bg-[#fcfcfd] dark:bg-[#030712]">
-      <header className="px-8 pt-10 pb-4 flex justify-between items-center z-40">
+      <header className="px-8 pt-10 pb-4 flex justify-between items-center z-40 shrink-0">
         <div className="flex items-center gap-4">
           <button onClick={() => setActiveTab('dashboard')} className="h-10 w-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-xl active-scale">
              <Icons.Dashboard className="w-5 h-5 text-white" />
@@ -240,10 +194,10 @@ const App: React.FC = () => {
                <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest truncate max-w-[80px]">
                  {isSuper ? 'System Master' : companies.find(c => c.id === currentUser?.companyId)?.name}
                </p>
-               <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full ${isOnline ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-amber-50 dark:bg-amber-900/20'}`}>
-                 <div className={`w-1 h-1 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'bg-amber-500'} ${isSyncing ? 'animate-pulse' : ''}`} />
-                 <span className={`text-[6px] font-black uppercase ${isOnline ? 'text-emerald-500' : 'text-amber-500'}`}>
-                   {isSyncing ? 'Syncing...' : (isOnline ? 'Connected' : 'Offline')}
+               <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full ${connectionStatus.bg}`}>
+                 <div className={`w-1 h-1 rounded-full ${connectionStatus.bullet} ${isSyncing ? 'animate-ping' : ''}`} />
+                 <span className={`text-[6px] font-black uppercase ${connectionStatus.color}`}>
+                   {isSyncing ? 'Syncing...' : connectionStatus.label}
                  </span>
                </div>
             </div>
@@ -251,7 +205,7 @@ const App: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setIsProfileOpen(true)} className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center active-scale transition-transform overflow-hidden border-2 border-indigo-500/10">
+          <button onClick={() => setIsProfileOpen(true)} className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center active-scale border-2 border-indigo-500/10 overflow-hidden">
             {currentUser?.avatar ? <img src={currentUser.avatar} className="w-full h-full object-cover" /> : <span className="font-black text-indigo-500">{currentUser?.name[0]}</span>}
           </button>
         </div>
@@ -261,7 +215,7 @@ const App: React.FC = () => {
           {activeTab === 'dashboard' && <Dashboard transactions={companyTransactions} accounts={companyAccounts} products={companyProducts} currencySymbol={currencySymbol} />}
           {activeTab === 'ledger' && (
              <div className="space-y-6">
-               <Ledger transactions={companyTransactions} accounts={companyAccounts} currencySymbol={currencySymbol} categories={DEFAULT_CATEGORIES} onDelete={() => {}} onUpdate={() => {}} />
+               <Ledger transactions={companyTransactions} accounts={companyAccounts} currencySymbol={currencySymbol} categories={DEFAULT_CATEGORIES} onDelete={(id) => setTransactions(prev => prev.filter(t => t.id !== id))} onUpdate={(tx) => setTransactions(prev => prev.map(t => t.id === tx.id ? tx : t))} />
                <div className="mt-8 border-t border-slate-100 dark:border-white/5 pt-8">
                   <Parties entities={companyEntities} setEntities={setEntities} currencySymbol={currencySymbol} transactions={companyTransactions} />
                </div>
