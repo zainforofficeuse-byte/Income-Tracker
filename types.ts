@@ -29,12 +29,21 @@ export interface User {
   avatar?: string;
 }
 
+export interface PricingAdjustment {
+  id: string;
+  label: string;
+  type: 'FIXED' | 'PERCENT';
+  value: number;
+  isEnabled: boolean;
+}
+
 export interface PricingRules {
   fixedOverhead: number;
   variableOverheadPercent: number;
   platformFeePercent: number;
   targetMarginPercent: number;
   autoApply: boolean;
+  customAdjustments: PricingAdjustment[];
 }
 
 export interface UserSettings {

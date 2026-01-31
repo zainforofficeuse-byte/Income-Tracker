@@ -25,19 +25,36 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
     categories: []
   });
 
-  // PROFESSIONAL AUTO-PILOT PRICING LOGIC
+  // ENHANCED AUTO-PILOT PRICING LOGIC
   useEffect(() => {
     if (globalSettings.pricingRules.autoApply && newP.purchasePrice && newP.purchasePrice > 0) {
       const rules = globalSettings.pricingRules;
-      const landedCost = newP.purchasePrice + (newP.purchasePrice * (rules.variableOverheadPercent / 100)) + rules.fixedOverhead;
+      
+      // 1. Initial Landed Cost (Purchase + Overheads)
+      let calculatedPrice = newP.purchasePrice + 
+                          (newP.purchasePrice * (rules.variableOverheadPercent / 100)) + 
+                          rules.fixedOverhead;
+      
+      // 2. Adjust for Margin and Platform Fee
       const fees = rules.platformFeePercent / 100;
       const margin = rules.targetMarginPercent / 100;
       const denominator = 1 - fees - margin;
       
       if (denominator > 0) {
-        const suggested = Math.ceil(landedCost / denominator);
-        setNewP(prev => ({ ...prev, sellingPrice: suggested }));
+        calculatedPrice = calculatedPrice / denominator;
       }
+
+      // 3. Apply CUSTOM ADJUSTMENTS (Fixed/Percent)
+      rules.customAdjustments.forEach(adj => {
+        if (!adj.isEnabled) return;
+        if (adj.type === 'FIXED') {
+          calculatedPrice += adj.value;
+        } else {
+          calculatedPrice += (calculatedPrice * (adj.value / 100));
+        }
+      });
+
+      setNewP(prev => ({ ...prev, sellingPrice: Math.ceil(calculatedPrice) }));
     }
   }, [newP.purchasePrice, globalSettings.pricingRules]);
 
@@ -51,7 +68,6 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
     if (!newP.name) return;
     const finalSku = newP.sku && newP.sku.trim() !== '' ? newP.sku : `SKU-${Math.random().toString(36).substring(7).toUpperCase()}`;
     
-    // CRITICAL FIX: Explicitly set companyId so it shows up for this company
     const finalProduct: Product = {
       ...newP,
       id: crypto.randomUUID(),
@@ -63,7 +79,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
       stock: newP.stock || 0,
       minStock: newP.minStock || 5,
       name: newP.name || 'Unnamed Product'
-    };
+    } as Product;
 
     setProducts(prev => [...prev, finalProduct]);
     onNewTags(newP.categories || []);
@@ -114,9 +130,16 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
           </div>
 
           {globalSettings.pricingRules.autoApply && (
-             <div className="flex items-center justify-center gap-2 py-2 px-4 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100/50">
-               <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping" />
-               <p className="text-[8px] font-black text-indigo-500 uppercase tracking-[0.2em]">Master Logic Synchronized</p>
+             <div className="flex flex-col items-center gap-2 py-3 px-4 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100/50">
+               <div className="flex items-center gap-2">
+                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping" />
+                 <p className="text-[8px] font-black text-indigo-500 uppercase tracking-[0.2em]">Master Logic Synchronized</p>
+               </div>
+               {globalSettings.pricingRules.customAdjustments.filter(a => a.isEnabled).length > 0 && (
+                 <p className="text-[7px] font-bold text-slate-400 uppercase tracking-widest">
+                   Applied: {globalSettings.pricingRules.customAdjustments.filter(a => a.isEnabled).map(a => a.label).join(', ')}
+                 </p>
+               )}
              </div>
           )}
 

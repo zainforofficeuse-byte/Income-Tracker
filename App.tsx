@@ -41,11 +41,8 @@ const App: React.FC = () => {
 
   const currentUser = useMemo(() => users.find(u => u.id === currentUserId) || null, [users, currentUserId]);
   
-  // For Super Admin testing, we might want to see 'company-azeem' data by default if they are in 'SYSTEM'
   const activeCompanyId = useMemo(() => {
     if (currentUser?.role === UserRole.SUPER_ADMIN) {
-      // If we are Super Admin, we default to the first real company for testing, 
-      // or 'SYSTEM' if no companies exist.
       return companies[0]?.id || 'SYSTEM';
     }
     return currentUser?.companyId || 'SYSTEM';
@@ -72,7 +69,8 @@ const App: React.FC = () => {
       variableOverheadPercent: 0,
       platformFeePercent: 0,
       targetMarginPercent: 20,
-      autoApply: true
+      autoApply: true,
+      customAdjustments: []
     }
   });
 
@@ -86,7 +84,15 @@ const App: React.FC = () => {
       setAccounts(p.accounts || []);
       setProducts(p.products || []);
       setEntities(p.entities || []);
-      if (p.settings) setSettings(prev => ({...prev, ...p.settings}));
+      if (p.settings) setSettings(prev => ({
+        ...prev, 
+        ...p.settings,
+        pricingRules: {
+          ...prev.pricingRules,
+          ...(p.settings.pricingRules || {}),
+          customAdjustments: p.settings.pricingRules?.customAdjustments || []
+        }
+      }));
     }
     setIsInitialized(true);
   }, []);
@@ -136,7 +142,6 @@ const App: React.FC = () => {
   if (!isInitialized) return null;
   if (isLocked) return <AuthGuard companies={companies} users={users} onUnlock={(userId) => { setCurrentUserId(userId); setIsLocked(false); }} />;
 
-  // Full navigation suite for Super Admin to test all modules
   const navItems = isSuper ? [
     { id: 'admin', icon: Icons.Admin, label: 'System' },
     { id: 'dashboard', icon: Icons.Dashboard, label: 'Hub' },
