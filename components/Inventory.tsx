@@ -11,9 +11,10 @@ interface InventoryProps {
   globalSettings: UserSettings;
   onNewTags: (tags: string[]) => void;
   activeCompanyId: string;
+  isReadOnly?: boolean;
 }
 
-const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySymbol, globalSettings, activeCompanyId }) => {
+const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySymbol, globalSettings, activeCompanyId, isReadOnly }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -34,6 +35,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
   }, [newP.purchasePrice, globalSettings.pricingRules]);
 
   const handleCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isReadOnly) return;
     const file = e.target.files?.[0];
     if (!file) return;
     setIsScanning(true);
@@ -54,7 +56,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
   };
 
   const saveProduct = () => {
-    if (!newP.name) return;
+    if (isReadOnly || !newP.name) return;
     if (editingId) {
       setProducts(prev => prev.map(p => p.id === editingId ? { ...p, ...newP } as Product : p));
       setEditingId(null);
@@ -67,6 +69,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
   };
 
   const toggleCategory = (tag: string) => {
+    if (isReadOnly) return;
     const current = newP.categories || [];
     if (current.includes(tag)) setNewP({ ...newP, categories: current.filter(t => t !== tag) });
     else setNewP({ ...newP, categories: [...current, tag] });
@@ -79,12 +82,14 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
           <h2 className="text-2xl font-black tracking-tightest">Inventory</h2>
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Stock Management</p>
         </div>
-        <button onClick={() => { setIsAdding(!isAdding); setEditingId(null); }} className={`h-12 w-12 rounded-2xl shadow-xl active-scale flex items-center justify-center ${isAdding ? 'bg-rose-500 text-white' : 'bg-indigo-600 text-white'}`}>
-          {isAdding ? '×' : <UI.Plus className="w-6 h-6" />}
-        </button>
+        {!isReadOnly && (
+            <button onClick={() => { setIsAdding(!isAdding); setEditingId(null); }} className={`h-12 w-12 rounded-2xl shadow-xl active-scale flex items-center justify-center ${isAdding ? 'bg-rose-500 text-white' : 'bg-indigo-600 text-white'}`}>
+            {isAdding ? '×' : <UI.Plus className="w-6 h-6" />}
+            </button>
+        )}
       </div>
 
-      {isAdding && (
+      {isAdding && !isReadOnly && (
         <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 premium-shadow border-2 border-indigo-500/10 space-y-6 animate-in zoom-in-95">
           <div className="flex flex-col items-center gap-4">
              <div className="relative w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-[1.5rem] overflow-hidden">
@@ -109,7 +114,6 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
                    {tag}
                  </button>
                ))}
-               {globalSettings.inventoryCategories.length === 0 && <p className="text-[8px] italic text-slate-300">Add tags in Settings first</p>}
             </div>
           </div>
 
@@ -118,18 +122,13 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
              <div className="space-y-1"><label className="text-[9px] font-black text-slate-400 ml-3">Retail</label><input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none" value={newP.sellingPrice || ''} onChange={e => setNewP({...newP, sellingPrice: parseFloat(e.target.value) || 0})} /></div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-             <div className="space-y-1"><label className="text-[9px] font-black text-slate-400 ml-3">Stock</label><input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none" value={newP.stock || ''} onChange={e => setNewP({...newP, stock: parseFloat(e.target.value) || 0})} /></div>
-             <div className="space-y-1"><label className="text-[9px] font-black text-slate-400 ml-3">Alert</label><input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none" value={newP.minStock || ''} onChange={e => setNewP({...newP, minStock: parseFloat(e.target.value) || 0})} /></div>
-          </div>
-
           <button onClick={saveProduct} className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase shadow-xl active-scale">{editingId ? 'Update' : 'Add Item'}</button>
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-4">
         {products.map(p => (
-          <div key={p.id} className="bg-white dark:bg-slate-900 rounded-[2rem] p-5 premium-shadow border border-black/[0.01] flex items-center justify-between group active-scale" onClick={() => { setNewP(p); setEditingId(p.id); setIsAdding(true); }}>
+          <div key={p.id} className="bg-white dark:bg-slate-900 rounded-[2rem] p-5 premium-shadow border border-black/[0.01] flex items-center justify-between group active-scale" onClick={() => { if(!isReadOnly) { setNewP(p); setEditingId(p.id); setIsAdding(true); } }}>
             <div className="flex items-center gap-4">
                <div className="h-14 w-14 rounded-2xl bg-slate-50 dark:bg-slate-800 overflow-hidden flex items-center justify-center">
                  {p.imageUrl ? <img src={p.imageUrl} className="w-full h-full object-cover" /> : <UI.Inventory className="w-7 h-7 text-indigo-500" />}

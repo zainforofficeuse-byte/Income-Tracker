@@ -6,9 +6,11 @@ interface UserManagementProps {
   users: User[];
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   currentUserRole: UserRole;
+  // Added isReadOnly prop to match usage in App.tsx
+  isReadOnly?: boolean;
 }
 
-const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, currentUserRole }) => {
+const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, currentUserRole, isReadOnly }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<User>>({ name: '', role: UserRole.STAFF, pin: '' });
@@ -20,7 +22,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, curren
   };
 
   const handleAction = () => {
-    if (!formData.name || !formData.pin || formData.pin.length !== 4) return;
+    // Prevent actions if in read-only mode
+    if (isReadOnly || !formData.name || !formData.pin || formData.pin.length !== 4) return;
 
     if (editingUserId) {
       // Edit Mode
@@ -47,12 +50,14 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, curren
   };
 
   const startEdit = (user: User) => {
+    if (isReadOnly) return;
     setEditingUserId(user.id);
     setFormData({ name: user.name, role: user.role, pin: user.pin });
     setIsAdding(true);
   };
 
   const deleteUser = (id: string) => {
+    if (isReadOnly) return;
     if (confirm('Remove this staff member?')) {
       setUsers(prev => prev.filter(u => u.id !== id));
     }
@@ -65,12 +70,15 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, curren
           <h2 className="text-2xl font-black tracking-tightest">Staff Hub</h2>
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Manage Permissions</p>
         </div>
-        <button onClick={() => { isAdding ? resetForm() : setIsAdding(true); }} className={`h-12 w-12 rounded-2xl flex items-center justify-center shadow-lg active-scale transition-all ${isAdding ? 'bg-black text-white dark:bg-white dark:text-black rotate-45' : 'bg-black text-white dark:bg-white dark:text-black'}`}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-        </button>
+        {/* Only show Add button if not read-only */}
+        {!isReadOnly && (
+          <button onClick={() => { isAdding ? resetForm() : setIsAdding(true); }} className={`h-12 w-12 rounded-2xl flex items-center justify-center shadow-lg active-scale transition-all ${isAdding ? 'bg-black text-white dark:bg-white dark:text-black rotate-45' : 'bg-black text-white dark:bg-white dark:text-black'}`}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+          </button>
+        )}
       </div>
 
-      {isAdding && (
+      {isAdding && !isReadOnly && (
         <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] premium-shadow border-2 border-black/5 dark:border-white/5 space-y-6 animate-in zoom-in-95 duration-300">
            <h3 className="text-lg font-black uppercase tracking-tightest">{editingUserId ? 'Modify Member' : 'Provision New Seat'}</h3>
            <div className="space-y-1">
@@ -119,16 +127,19 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, curren
                  </div>
                </div>
             </div>
-            <div className="flex items-center gap-1">
-              <button onClick={() => startEdit(u)} className="h-10 w-10 text-slate-400 hover:text-black dark:hover:text-white rounded-xl flex items-center justify-center transition-colors active-scale">
-                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-              </button>
-              {u.role !== UserRole.SUPER_ADMIN && (
-                <button onClick={() => deleteUser(u.id)} className="h-10 w-10 text-rose-500 hover:bg-rose-50 rounded-xl flex items-center justify-center transition-colors active-scale">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            {/* Only show edit/delete buttons if not read-only */}
+            {!isReadOnly && (
+              <div className="flex items-center gap-1">
+                <button onClick={() => startEdit(u)} className="h-10 w-10 text-slate-400 hover:text-black dark:hover:text-white rounded-xl flex items-center justify-center transition-colors active-scale">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
                 </button>
-              )}
-            </div>
+                {u.role !== UserRole.SUPER_ADMIN && (
+                  <button onClick={() => deleteUser(u.id)} className="h-10 w-10 text-rose-500 hover:bg-rose-50 rounded-xl flex items-center justify-center transition-colors active-scale">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>

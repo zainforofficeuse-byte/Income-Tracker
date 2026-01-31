@@ -14,7 +14,6 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, products,
   const cashBalance = useMemo(() => accounts.reduce((sum, a) => sum + a.balance, 0), [accounts]);
   const inventoryValue = useMemo(() => products.reduce((sum, p) => sum + (p.stock * p.purchasePrice), 0), [products]);
 
-  // Professional SaaS Trend Analytics (Last 7 Days)
   const chartData = useMemo(() => {
     const last7Days = [...Array(7)].map((_, i) => {
       const d = new Date();
@@ -38,24 +37,23 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, products,
   return (
     <div className="space-y-8 animate-slide-up pb-10">
       <div className="flex flex-col items-center justify-center pt-8">
-        <div className="px-4 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 rounded-full mb-3">
-           <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Total Capital</span>
+        <div className="px-4 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-full mb-3">
+           <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Total Capital</span>
         </div>
         <div className="flex items-start justify-center gap-1">
           <span className="text-2xl font-black text-slate-300 dark:text-slate-700 mt-2">{currencySymbol}</span>
-          <h2 className="text-6xl font-black tracking-tightest leading-none">
+          <h2 className="text-6xl font-black tracking-tightest leading-none text-slate-900 dark:text-white">
             {(cashBalance + inventoryValue).toLocaleString()}
           </h2>
         </div>
       </div>
 
-      {/* Visual Trend Chart - The SaaS Professional Touch */}
-      <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-6 premium-shadow border border-black/[0.02] dark:border-white/5">
+      <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-6 premium-shadow border border-emerald-500/5">
         <div className="flex justify-between items-center mb-6 px-2">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Growth Analytics</p>
           <div className="flex gap-4">
             <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+              <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
               <span className="text-[8px] font-bold text-slate-400 uppercase">Cash Flow</span>
             </div>
           </div>
@@ -65,33 +63,33 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, products,
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="colorNet" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                 </linearGradient>
               </defs>
               <Tooltip 
                 contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900' }}
-                cursor={{ stroke: '#6366f1', strokeWidth: 2, strokeDasharray: '5 5' }}
+                cursor={{ stroke: '#10b981', strokeWidth: 2, strokeDasharray: '5 5' }}
               />
-              <Area type="monotone" dataKey="net" stroke="#6366f1" strokeWidth={4} fillOpacity={1} fill="url(#colorNet)" />
+              <Area type="monotone" dataKey="net" stroke="#10b981" strokeWidth={4} fillOpacity={1} fill="url(#colorNet)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow flex flex-col items-center border border-black/[0.01]">
+        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow flex flex-col items-center border border-emerald-500/5">
           <p className="text-[8px] font-black text-slate-400 uppercase mb-2">Liquid Cash</p>
-          <p className="text-xl font-black text-indigo-500">{currencySymbol}{cashBalance.toLocaleString()}</p>
+          <p className="text-xl font-black text-emerald-500">{currencySymbol}{cashBalance.toLocaleString()}</p>
         </div>
-        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow flex flex-col items-center border border-black/[0.01]">
+        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow flex flex-col items-center border border-emerald-500/5">
           <p className="text-[8px] font-black text-slate-400 uppercase mb-2">Stock Value</p>
           <p className="text-xl font-black text-emerald-500">{currencySymbol}{inventoryValue.toLocaleString()}</p>
         </div>
       </div>
 
-      <div className="bg-slate-950 rounded-[3rem] p-8 text-white relative overflow-hidden shadow-2xl">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 blur-[50px] rounded-full"></div>
+      <div className="bg-emerald-950 rounded-[3rem] p-8 text-white relative overflow-hidden shadow-2xl">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[50px] rounded-full"></div>
         <div className="relative z-10 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-[10px] font-black uppercase tracking-widest opacity-50">Critical Alerts</h3>

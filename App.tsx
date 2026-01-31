@@ -74,6 +74,8 @@ const App: React.FC = () => {
 
   const currentUser = useMemo(() => users.find(u => u.id === currentUserId) || null, [users, currentUserId]);
   const activeCompanyId = useMemo(() => currentUser?.companyId || 'SYSTEM', [currentUser]);
+  const currentCompany = useMemo(() => companies.find(c => c.id === activeCompanyId) || null, [companies, activeCompanyId]);
+  const isSuspended = useMemo(() => currentCompany?.status === 'SUSPENDED', [currentCompany]);
   const isSuper = currentUser?.role === UserRole.SUPER_ADMIN;
 
   const companyTransactions = useMemo(() => isSuper ? transactions : transactions.filter(t => t.companyId === activeCompanyId), [transactions, activeCompanyId, isSuper]);
@@ -82,11 +84,12 @@ const App: React.FC = () => {
   const companyEntities = useMemo(() => isSuper ? entities : entities.filter(e => e.companyId === activeCompanyId), [entities, activeCompanyId, isSuper]);
   const companyUsers = useMemo(() => isSuper ? users : users.filter(u => u.companyId === activeCompanyId), [users, activeCompanyId, isSuper]);
 
-  const syncToCloud = async (action: 'PUSH' | 'PULL') => {
+  const syncToCloud = async (action: 'PUSH' | 'PULL' | 'TRIGGER_BACKUP') => {
     if (!settings.cloud.scriptUrl || !isOnline) return;
+    
     setIsSyncing(true);
     try {
-      if (action === 'PUSH') {
+      if (action === 'PUSH' && !isSuspended) {
         await fetch(settings.cloud.scriptUrl, {
           method: 'POST',
           mode: 'no-cors',
@@ -97,17 +100,28 @@ const App: React.FC = () => {
             data: { transactions, accounts, products, entities, users, companies, settings }
           })
         });
-      } else {
+      } else if (action === 'PULL') {
         const response = await fetch(`${settings.cloud.scriptUrl}?action=SYNC_PULL&companyId=${activeCompanyId}`);
         const result = await response.json();
         if (result.status === 'success' && result.data) {
           const d = result.data;
-          if (d.transactions) setTransactions(d.transactions);
-          if (d.accounts) setAccounts(d.accounts);
-          if (d.products) setProducts(d.products);
-          if (d.entities) setEntities(d.entities);
-          if (d.users) setUsers(prev => [...prev.filter(u => u.id === 'system-sa'), ...d.users]);
+          if (d.transactions) setTransactions(prev => [...prev.filter(t => t.companyId !== activeCompanyId), ...d.transactions]);
+          if (d.accounts) setAccounts(prev => [...prev.filter(a => a.companyId !== activeCompanyId), ...d.accounts]);
+          if (d.products) setProducts(prev => [...prev.filter(p => p.companyId !== activeCompanyId), ...d.products]);
+          if (d.entities) setEntities(prev => [...prev.filter(e => e.companyId !== activeCompanyId), ...d.entities]);
+          if (d.users) setUsers(prev => [
+            ...prev.filter(u => u.companyId !== activeCompanyId && u.id !== 'system-sa'), 
+            ...d.users
+          ]);
         }
+      } else if (action === 'TRIGGER_BACKUP') {
+        await fetch(settings.cloud.scriptUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'TRIGGER_BACKUP' })
+        });
+        alert('Remote Backup Triggered Successfully');
       }
       setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, isConnected: true } }));
     } catch (err) {
@@ -148,11 +162,7 @@ const App: React.FC = () => {
         if (p.entities) setEntities(p.entities);
         if (p.categories) setCategories(p.categories);
         if (p.settings) {
-          setSettings(prev => ({
-            ...prev,
-            ...p.settings,
-            cloud: { ...prev.cloud, ...(p.settings.cloud || prev.cloud) }
-          }));
+          setSettings(prev => ({ ...prev, ...p.settings, cloud: { ...prev.cloud, ...(p.settings.cloud || prev.cloud) } }));
         }
       }
       setIsInitialized(true);
@@ -163,11 +173,11 @@ const App: React.FC = () => {
   useEffect(() => {
     if (isInitialized) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ companies, users, transactions, accounts, products, entities, categories, settings }));
-      if (settings.cloud.autoSync && !isLanding && !isLocked) syncToCloud('PUSH');
+      if (settings.cloud.autoSync && !isLanding && !isLocked && !isSuspended) syncToCloud('PUSH');
     }
     if (settings.darkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
-  }, [companies, users, transactions, accounts, products, entities, categories, isInitialized, settings, isLanding, isLocked]);
+  }, [companies, users, transactions, accounts, products, entities, categories, isInitialized, settings, isLanding, isLocked, isSuspended]);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -181,7 +191,7 @@ const App: React.FC = () => {
   }, []);
 
   const addTransaction = (tx: any) => {
-    if (!currentUser) return;
+    if (!currentUser || isSuspended) return;
     const newTx = { ...tx, id: crypto.randomUUID(), companyId: activeCompanyId, createdBy: currentUser.id, syncStatus: 'PENDING', version: 1, updatedAt: new Date().toISOString() };
     setTransactions(prev => [newTx, ...prev]);
     if (tx.paymentStatus === 'PAID') {
@@ -206,8 +216,18 @@ const App: React.FC = () => {
     const accId = crypto.randomUUID();
     setCompanies(prev => [...prev, { id: compId, name, registrationDate: new Date().toISOString(), status: 'ACTIVE' }]);
     setUsers(prev => [...prev, { id: userId, companyId: compId, name: adminName, email: adminEmail, password: adminPass, pin: adminPass, role: UserRole.ADMIN }]);
-    setAccounts(prev => [...prev, { id: accId, companyId: compId, name: 'General Liquidity', balance: 0, color: '#000000', type: 'CASH' }]);
+    setAccounts(prev => [...prev, { id: accId, companyId: compId, name: 'General Liquidity', balance: 0, color: '#10b981', type: 'CASH' }]);
     return userId;
+  };
+
+  const handleUpdateCompany = (compId: string, updates: Partial<Company>, adminUpdates: Partial<User>) => {
+    setCompanies(prev => prev.map(c => c.id === compId ? { ...c, ...updates } : c));
+    setUsers(prev => prev.map(u => {
+       if (u.companyId === compId && u.role === UserRole.ADMIN) {
+         return { ...u, ...adminUpdates, password: adminUpdates.pin || u.password };
+       }
+       return u;
+    }));
   };
 
   const currencySymbol = useMemo(() => CURRENCIES.find(c => c.code === settings.currency)?.symbol || 'Rs.', [settings.currency]);
@@ -225,62 +245,69 @@ const App: React.FC = () => {
   );
 
   const connectionStatus = !isOnline ? 'OFFLINE' : (settings.cloud.isConnected ? 'CONNECTED' : 'NOT LINKED');
-  const connectionColor = !isOnline ? 'bg-rose-500' : (settings.cloud.isConnected ? 'bg-black dark:bg-white' : 'bg-amber-500');
+  const connectionColor = !isOnline ? 'bg-rose-500' : (settings.cloud.isConnected ? 'bg-emerald-500' : 'bg-amber-500');
 
   return (
-    <div className="h-screen w-full text-black dark:text-white max-w-6xl mx-auto relative overflow-hidden flex flex-col md:flex-row bg-white dark:bg-[#030712]">
+    <div className="h-screen w-full text-slate-900 dark:text-white max-w-6xl mx-auto relative overflow-hidden flex flex-col md:flex-row bg-white dark:bg-[#030712]">
       {/* Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-black border-r border-black/5 p-8 z-50">
+      <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-black border-r border-emerald-500/5 p-8 z-50">
           <div className="mb-10 flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-black tracking-tightest">TRACKR<span className="text-black dark:text-white">.</span></h1>
+              <h1 className="text-2xl font-black tracking-tightest">TRACKR<span className="text-emerald-500">.</span></h1>
               <div className={`h-2 w-2 rounded-full ${connectionColor}`} title={connectionStatus}></div>
             </div>
-            <div className="px-3 py-1 bg-slate-100 dark:bg-slate-900 rounded-full inline-block self-start">
-               <p className="text-[7px] font-black uppercase tracking-widest text-slate-500">{connectionStatus}</p>
+            <div className="px-3 py-1 bg-emerald-50 dark:bg-emerald-900/20 rounded-full inline-block self-start">
+               <p className="text-[7px] font-black uppercase tracking-widest text-emerald-600">{connectionStatus}</p>
             </div>
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">{currentUser?.name}</p>
           </div>
           <nav className="flex-1 space-y-2 overflow-y-auto no-scrollbar">
             {(isSuper ? ['admin', 'dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings'] : ['dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings']).map(t => (
-               <button key={t} onClick={() => setActiveTab(t as Tab)} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-black text-white shadow-xl dark:bg-white dark:text-black' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5'}`}>
+               <button key={t} onClick={() => setActiveTab(t as Tab)} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20 dark:bg-emerald-500' : 'text-slate-400 hover:bg-emerald-50/50 dark:hover:bg-white/5'}`}>
                   {React.createElement((Icons as any)[t.charAt(0).toUpperCase() + t.slice(1)] || Icons.Dashboard, { className: 'w-4 h-4' })}
                   {t}
                </button>
             ))}
           </nav>
-          <div className="pt-8 border-t border-black/5">
+          <div className="pt-8 border-t border-emerald-500/10">
              <button onClick={() => setIsLocked(true)} className="w-full py-4 text-[9px] font-black uppercase text-rose-500 bg-rose-50 dark:bg-rose-900/10 rounded-2xl active-scale">Lock Session</button>
-             <button onClick={() => setIsLanding(true)} className="w-full py-4 text-[9px] font-black uppercase text-slate-400 mt-2 hover:text-black transition-colors">Exit Home</button>
+             <button onClick={() => setIsLanding(true)} className="w-full py-4 text-[9px] font-black uppercase text-slate-400 mt-2 hover:text-emerald-600 transition-colors">Exit Home</button>
           </div>
       </aside>
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
         <header className="px-8 pt-10 pb-4 flex justify-between items-center z-40 md:hidden">
           <div className="flex items-center gap-4">
-            <div className="h-10 w-10 rounded-xl bg-black dark:bg-white flex items-center justify-center shadow-xl"><Icons.Dashboard className="w-5 h-5 text-white dark:text-black" /></div>
-            <h1 className="text-xl font-black tracking-tightest">TRACKR.</h1>
+            <div className="h-10 w-10 rounded-xl bg-emerald-600 flex items-center justify-center shadow-xl"><Icons.Dashboard className="w-5 h-5 text-white" /></div>
+            <h1 className="text-xl font-black tracking-tightest">TRACKR<span className="text-emerald-500">.</span></h1>
           </div>
           <div className="flex items-center gap-3">
              <div className={`h-2 w-2 rounded-full ${connectionColor}`}></div>
-             <button onClick={() => setIsProfileOpen(true)} className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-black text-black dark:text-white border-2 border-black/5">{currentUser?.name[0]}</button>
+             <button onClick={() => setIsProfileOpen(true)} className="h-10 w-10 rounded-full bg-emerald-50 dark:bg-slate-800 flex items-center justify-center font-black text-emerald-600 border-2 border-emerald-500/10">{currentUser?.name[0]}</button>
           </div>
         </header>
+
+        {isSuspended && !isSuper && (
+            <div className="mx-8 mt-4 bg-rose-500/10 border border-rose-500/20 p-4 rounded-2xl flex items-center justify-between">
+                <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Subscription Suspended • Restricted to Read-Only Mode</p>
+                <Icons.Admin className="w-4 h-4 text-rose-500" />
+            </div>
+        )}
 
         <main className="flex-1 overflow-y-auto no-scrollbar px-6 md:px-12 py-8 pb-40">
             {activeTab === 'dashboard' && <Dashboard transactions={companyTransactions} accounts={companyAccounts} products={companyProducts} currencySymbol={currencySymbol} />}
             {activeTab === 'ledger' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                <Ledger transactions={companyTransactions} accounts={companyAccounts} currencySymbol={currencySymbol} categories={categories} onDelete={(id) => setTransactions(prev => prev.filter(t => t.id !== id))} onUpdate={(tx) => setTransactions(prev => prev.map(t => t.id === tx.id ? tx : t))} />
-                <Parties entities={companyEntities} setEntities={setEntities} currencySymbol={currencySymbol} transactions={companyTransactions} activeCompanyId={activeCompanyId} />
+                <Ledger transactions={companyTransactions} accounts={companyAccounts} currencySymbol={currencySymbol} categories={categories} onDelete={(id) => !isSuspended && setTransactions(prev => prev.filter(t => t.id !== id))} onUpdate={(tx) => !isSuspended && setTransactions(prev => prev.map(t => t.id === tx.id ? tx : t))} />
+                <Parties entities={companyEntities} setEntities={setEntities} currencySymbol={currencySymbol} transactions={companyTransactions} activeCompanyId={activeCompanyId} isReadOnly={isSuspended && !isSuper} />
               </div>
             )}
-            {activeTab === 'inventory' && <Inventory products={companyProducts} setProducts={setProducts} currencySymbol={currencySymbol} globalSettings={settings} onNewTags={(tags) => setSettings(prev => ({...prev, inventoryCategories: Array.from(new Set([...prev.inventoryCategories, ...tags]))}))} activeCompanyId={activeCompanyId} />}
-            {activeTab === 'add' && <TransactionForm accounts={companyAccounts} products={companyProducts} entities={companyEntities} onAdd={addTransaction} settings={settings} categories={categories} />}
+            {activeTab === 'inventory' && <Inventory products={companyProducts} setProducts={setProducts} currencySymbol={currencySymbol} globalSettings={settings} onNewTags={(tags) => setSettings(prev => ({...prev, inventoryCategories: Array.from(new Set([...prev.inventoryCategories, ...tags]))}))} activeCompanyId={activeCompanyId} isReadOnly={isSuspended && !isSuper} />}
+            {activeTab === 'add' && (isSuspended ? <div className="flex flex-col items-center justify-center py-40 opacity-20"><Icons.Admin className="w-12 h-12 mb-4" /><p className="font-black uppercase tracking-widest">Postings Locked</p></div> : <TransactionForm accounts={companyAccounts} products={companyProducts} entities={companyEntities} onAdd={addTransaction} settings={settings} categories={categories} />)}
             {activeTab === 'reports' && <Reports transactions={companyTransactions} products={companyProducts} entities={companyEntities} accounts={companyAccounts} currencySymbol={currencySymbol} />}
-            {activeTab === 'users' && <UserManagement users={companyUsers} setUsers={setUsers} currentUserRole={currentUser?.role || UserRole.STAFF} />}
-            {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} transactions={companyTransactions} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={(tag) => setSettings(p => ({...p, inventoryCategories: p.inventoryCategories.filter(t => t !== tag)}))} onFetchCloud={() => syncToCloud('PULL')} />}
-            {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} setCompanies={setCompanies} users={users} onRegister={handleRegisterCompany} transactions={transactions} accounts={accounts} settings={settings} onUpdateConfig={() => {}} onConnect={() => syncToCloud('PUSH')} isOnline={isOnline} />}
+            {activeTab === 'users' && <UserManagement users={companyUsers} setUsers={setUsers} currentUserRole={currentUser?.role || UserRole.STAFF} isReadOnly={isSuspended && !isSuper} />}
+            {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => !isSuspended && setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} transactions={companyTransactions} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={(tag) => setSettings(p => ({...p, inventoryCategories: p.inventoryCategories.filter(t => t !== tag)}))} onFetchCloud={() => syncToCloud('PULL')} />}
+            {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} onRegister={handleRegisterCompany} onUpdateCompany={handleUpdateCompany} transactions={transactions} accounts={accounts} settings={settings} isOnline={isOnline} onTriggerBackup={() => syncToCloud('TRIGGER_BACKUP')} />}
         </main>
       </div>
 
@@ -289,8 +316,8 @@ const App: React.FC = () => {
       )}
 
       {isSyncing && (
-        <div className="fixed top-6 right-6 z-[100] bg-black text-white dark:bg-white dark:text-black px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest shadow-2xl animate-in slide-in-from-right-10 flex items-center gap-2">
-           <div className="w-2 h-2 bg-white dark:bg-black rounded-full animate-ping"></div>
+        <div className="fixed top-6 right-6 z-[100] bg-emerald-600 text-white px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest shadow-2xl animate-in slide-in-from-right-10 flex items-center gap-2">
+           <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
            Processing...
         </div>
       )}
@@ -298,7 +325,7 @@ const App: React.FC = () => {
       <div className="md:hidden absolute bottom-10 left-0 right-0 px-6 z-50 pointer-events-none">
         <nav className="glass rounded-[2.5rem] p-1.5 flex justify-between items-center premium-shadow pointer-events-auto overflow-x-auto no-scrollbar">
           {(isSuper ? ['admin', 'dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings'] : ['dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings']).map((id) => (
-            <button key={id} onClick={() => setActiveTab(id as Tab)} className={`flex-1 min-w-[50px] flex flex-col items-center gap-1 p-3 rounded-3xl transition-all ${activeTab === id ? 'bg-black text-white shadow-lg dark:bg-white dark:text-black' : 'text-slate-400'}`}>
+            <button key={id} onClick={() => setActiveTab(id as Tab)} className={`flex-1 min-w-[50px] flex flex-col items-center gap-1 p-3 rounded-3xl transition-all ${activeTab === id ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400'}`}>
               {React.createElement((Icons as any)[id.charAt(0).toUpperCase() + id.slice(1)] || Icons.Dashboard, { className: 'w-4 h-4' })}
             </button>
           ))}

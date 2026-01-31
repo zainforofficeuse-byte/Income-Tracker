@@ -55,10 +55,9 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onReg
     <div className="h-full w-full flex flex-col items-center justify-center p-8 bg-[#fcfcfd] dark:bg-[#030712] animate-in fade-in duration-500 overflow-y-auto">
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
-           {/* Logo now navigates back to landing */}
-           <button onClick={onBack} className="h-16 w-16 rounded-2xl bg-indigo-600 mb-6 flex items-center justify-center text-white font-black text-2xl shadow-2xl mx-auto active-scale transition-transform">T</button>
-           <h2 className="text-3xl font-black tracking-tightest uppercase">TRACKR<span className="text-indigo-600">.</span></h2>
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 italic">Enterprise Gateway</p>
+           <button onClick={onBack} className="h-16 w-16 rounded-2xl bg-emerald-600 mb-6 flex items-center justify-center text-white font-black text-2xl shadow-2xl mx-auto active-scale transition-transform">T</button>
+           <h2 className="text-3xl font-black tracking-tightest uppercase text-slate-900 dark:text-white">TRACKR<span className="text-emerald-500">.</span></h2>
+           <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mt-1 italic opacity-60">Enterprise Gateway</p>
         </div>
 
         {error && (
@@ -70,86 +69,86 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onReg
         {view === 'LOGIN' ? (
           <form onSubmit={handleLogin} className="space-y-4 animate-in slide-in-from-bottom-4">
              <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Email Address</label>
+                <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest ml-4">Email Address</label>
                 <input 
                   type="email"
                   placeholder="name@company.com" 
-                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border-none shadow-sm" 
+                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm focus:ring-2 focus:ring-emerald-500/10" 
                   value={formData.email} 
                   onChange={e => setFormData({...formData, email: e.target.value})} 
                 />
              </div>
              <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Password</label>
+                <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest ml-4">Password</label>
                 <input 
                   type="password"
                   placeholder="••••••••" 
-                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border-none shadow-sm" 
+                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm focus:ring-2 focus:ring-emerald-500/10" 
                   value={formData.password} 
                   onChange={e => setFormData({...formData, password: e.target.value})} 
                 />
              </div>
-             <button type="submit" className="w-full py-5 mt-4 bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale shadow-xl shadow-indigo-500/20">Sign In</button>
+             <button type="submit" className="w-full py-5 mt-4 bg-emerald-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale shadow-xl shadow-emerald-500/20">Sign In</button>
              <div className="flex flex-col gap-2 mt-4">
-                <button type="button" onClick={() => setView('SIGNUP')} className="w-full text-[10px] font-black text-indigo-600 uppercase tracking-widest">Need a business account? Sign Up</button>
+                <button type="button" onClick={() => setView('SIGNUP')} className="w-full text-[10px] font-black text-emerald-600 uppercase tracking-widest">Need a business account? Sign Up</button>
                 <button type="button" onClick={onBack} className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-60">Return to Home</button>
              </div>
           </form>
         ) : (
           <form onSubmit={handleSignup} className="space-y-4 animate-in slide-in-from-bottom-4">
              <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Business Name</label>
+                <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest ml-4">Business Name</label>
                 <input 
                   placeholder="Azeem Traders" 
-                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border-none shadow-sm" 
+                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm focus:ring-2 focus:ring-emerald-500/10" 
                   value={formData.company} 
                   onChange={e => setFormData({...formData, company: e.target.value})} 
                 />
              </div>
              <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Admin Full Name</label>
+                <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest ml-4">Admin Full Name</label>
                 <input 
                   placeholder="Zain Azeem" 
-                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border-none shadow-sm" 
+                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm focus:ring-2 focus:ring-emerald-500/10" 
                   value={formData.name} 
                   onChange={e => setFormData({...formData, name: e.target.value})} 
                 />
              </div>
              <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Email</label>
+                <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest ml-4">Email</label>
                 <input 
                   type="email"
                   placeholder="admin@trackr.com" 
-                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border-none shadow-sm" 
+                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm focus:ring-2 focus:ring-emerald-500/10" 
                   value={formData.email} 
                   onChange={e => setFormData({...formData, email: e.target.value})} 
                 />
              </div>
              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Password</label>
+                   <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest ml-4">Password</label>
                    <input 
                      type="password"
                      placeholder="••••" 
-                     className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border-none shadow-sm" 
+                     className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm focus:ring-2 focus:ring-emerald-500/10" 
                      value={formData.password} 
                      onChange={e => setFormData({...formData, password: e.target.value})} 
                    />
                 </div>
                 <div className="space-y-1">
-                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Confirm</label>
+                   <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest ml-4">Confirm</label>
                    <input 
                      type="password"
                      placeholder="••••" 
-                     className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border-none shadow-sm" 
+                     className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm focus:ring-2 focus:ring-emerald-500/10" 
                      value={formData.confirmPassword} 
                      onChange={e => setFormData({...formData, confirmPassword: e.target.value})} 
                    />
                 </div>
              </div>
-             <button type="submit" className="w-full py-5 mt-4 bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale shadow-xl shadow-indigo-500/20">Create My ERP</button>
+             <button type="submit" className="w-full py-5 mt-4 bg-emerald-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale shadow-xl shadow-emerald-500/20">Create My ERP</button>
              <div className="flex flex-col gap-2 mt-4 text-center">
-                <button type="button" onClick={() => setView('LOGIN')} className="w-full text-[10px] font-black text-indigo-600 uppercase tracking-widest">Already registered? Login</button>
+                <button type="button" onClick={() => setView('LOGIN')} className="w-full text-[10px] font-black text-emerald-600 uppercase tracking-widest">Already registered? Login</button>
                 <button type="button" onClick={onBack} className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-60">Back to Landing</button>
              </div>
           </form>

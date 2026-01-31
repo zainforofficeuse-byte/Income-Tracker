@@ -9,17 +9,17 @@ interface PartiesProps {
   currencySymbol: string;
   transactions: Transaction[];
   activeCompanyId: string;
+  isReadOnly?: boolean;
 }
 
-const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol, transactions, activeCompanyId }) => {
+const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol, transactions, activeCompanyId, isReadOnly }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [newEnt, setNewEnt] = useState<Partial<Entity>>({ name: '', type: 'CLIENT', balance: 0 });
   const [filterType, setFilterType] = useState<'CLIENT' | 'VENDOR'>('CLIENT');
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
 
   const addEntity = () => {
-    if (!newEnt.name) return;
-    // FIXED: Added activeCompanyId to ensure new entities are associated with the correct company
+    if (isReadOnly || !newEnt.name) return;
     const finalEntity: Entity = {
       ...newEnt,
       id: crypto.randomUUID(),
@@ -41,7 +41,6 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
 
   return (
     <div className="space-y-8 animate-slide-up">
-      {/* Debt Summary */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-emerald-50 dark:bg-emerald-900/10 p-6 rounded-[2.5rem] border border-emerald-100 flex flex-col items-center">
           <p className="text-[8px] font-black text-emerald-600 uppercase mb-1">Receivables</p>
@@ -60,26 +59,18 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
 
       <div className="flex items-center justify-between px-2">
           <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">{filterType} Ledger</h3>
-          <button onClick={() => setIsAdding(!isAdding)} className="h-10 w-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg active-scale">
-            {isAdding ? '×' : '+'}
-          </button>
+          {!isReadOnly && (
+              <button onClick={() => setIsAdding(!isAdding)} className="h-10 w-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg active-scale">
+              {isAdding ? '×' : '+'}
+              </button>
+          )}
       </div>
 
-      {isAdding && (
+      {isAdding && !isReadOnly && (
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] premium-shadow border-2 border-indigo-500/10 space-y-4 animate-in zoom-in-95 duration-300">
            <div className="space-y-1">
              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Full Name</label>
              <input value={newEnt.name} onChange={e => setNewEnt({...newEnt, name: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none" placeholder="e.g. Azeem Traders" />
-           </div>
-           <div className="grid grid-cols-2 gap-3">
-             <div className="space-y-1">
-               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Contact</label>
-               <input value={newEnt.phone} onChange={e => setNewEnt({...newEnt, phone: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none" placeholder="03xx-xxxxxxx" />
-             </div>
-             <div className="space-y-1">
-               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Initial Bal</label>
-               <input type="number" value={newEnt.balance} onChange={e => setNewEnt({...newEnt, balance: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none" placeholder="0" />
-             </div>
            </div>
            <button onClick={addEntity} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest active-scale shadow-xl">Create Account</button>
         </div>
@@ -103,20 +94,11 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
               <p className={`font-black text-base ${ent.balance > 0 ? 'text-emerald-500' : ent.balance < 0 ? 'text-rose-500' : 'text-slate-300'}`}>
                 {currencySymbol}{Math.abs(ent.balance).toLocaleString()}
               </p>
-              <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">
-                {ent.balance > 0 ? 'Receivable' : ent.balance < 0 ? 'Payable' : 'Clear'}
-              </p>
             </div>
           </button>
         ))}
-        {entities.filter(e => e.type === filterType).length === 0 && (
-          <div className="py-20 text-center opacity-20">
-             <p className="text-[10px] font-black uppercase tracking-widest">No Parties Found</p>
-          </div>
-        )}
       </div>
 
-      {/* Entity Detailed Statement Modal */}
       {selectedEntityId && selectedEntity && (
         <div className="fixed inset-0 z-[100] flex flex-col p-6 animate-in fade-in duration-300">
            <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-xl" onClick={() => setSelectedEntityId(null)} />
@@ -129,21 +111,7 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
                  <button onClick={() => setSelectedEntityId(null)} className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-black">×</button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mb-8">
-                 <div className="bg-slate-50 dark:bg-slate-800 p-5 rounded-[2rem]">
-                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Current Balance</p>
-                    <p className={`text-xl font-black ${selectedEntity.balance > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                       {currencySymbol}{Math.abs(selectedEntity.balance).toLocaleString()}
-                    </p>
-                 </div>
-                 <div className="bg-slate-50 dark:bg-slate-800 p-5 rounded-[2rem]">
-                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Total Txns</p>
-                    <p className="text-xl font-black">{entityTransactions.length}</p>
-                 </div>
-              </div>
-
               <div className="flex-1 overflow-y-auto no-scrollbar space-y-3">
-                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Recent Transactions</p>
                  {entityTransactions.length > 0 ? entityTransactions.map(tx => (
                    <div key={tx.id} className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl flex items-center justify-between">
                       <div>
@@ -156,11 +124,10 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
                    </div>
                  )) : (
                    <div className="py-20 text-center opacity-20">
-                      <p className="text-[10px] font-black uppercase tracking-widest">No transaction history</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest">No history</p>
                    </div>
                  )}
               </div>
-
               <button onClick={() => setSelectedEntityId(null)} className="w-full py-4 mt-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest">Close Statement</button>
            </div>
         </div>
