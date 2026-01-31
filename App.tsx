@@ -15,7 +15,7 @@ import AuthGuard from './components/AuthGuard';
 import ProfileModal from './components/ProfileModal';
 
 const STORAGE_KEY = 'trackr_enterprise_v6';
-const MASTER_CONFIG_URL = ''; 
+const MASTER_CONFIG_URL = 'https://raw.githubusercontent.com/zainforofficeuse-byte/config-file-income-tracker/refs/heads/main/config.txt'; 
 
 const INITIAL_COMPANIES: Company[] = [
   { id: 'company-azeem', name: 'Azeem Solutions', registrationDate: new Date().toISOString(), status: 'ACTIVE' }
