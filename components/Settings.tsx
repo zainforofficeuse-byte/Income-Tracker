@@ -11,6 +11,8 @@ interface SettingsProps {
   categories: Record<TransactionType, string[]>;
   setCategories: React.Dispatch<React.SetStateAction<Record<TransactionType, string[]>>>;
   transactions: Transaction[];
+  logoUrl: string | null;
+  setLogoUrl: (url: string | null) => void;
 }
 
 const Settings: React.FC<SettingsProps> = ({ 
@@ -20,7 +22,9 @@ const Settings: React.FC<SettingsProps> = ({
   setAccounts, 
   categories, 
   setCategories,
-  transactions
+  transactions,
+  logoUrl,
+  setLogoUrl
 }) => {
   const [activeCategoryType, setActiveCategoryType] = useState<TransactionType>(TransactionType.EXPENSE);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -44,6 +48,19 @@ const Settings: React.FC<SettingsProps> = ({
   const showSavedFeedback = () => {
     setSaveStatus('saved');
     setTimeout(() => setSaveStatus('idle'), 2000);
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoUrl(reader.result as string);
+        setSaveStatus('saving');
+        setTimeout(showSavedFeedback, 500);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   // Debounced Auto-save for Account Edits
@@ -166,6 +183,43 @@ const Settings: React.FC<SettingsProps> = ({
           </span>
         </div>
       </div>
+
+      {/* Brand Section */}
+      <section>
+        <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] mb-4 px-2">Branding</p>
+        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow border border-black/[0.02] dark:border-white/5 flex flex-col items-center gap-6">
+          <div className="relative group">
+            <div className="h-24 w-24 rounded-3xl bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden transition-all group-hover:border-indigo-500">
+              {logoUrl ? (
+                <img src={logoUrl} className="w-full h-full object-contain" alt="Current Logo" />
+              ) : (
+                <Icons.Plus className="w-8 h-8 text-slate-300" />
+              )}
+            </div>
+            <input 
+              type="file" 
+              accept="image/*"
+              onChange={handleLogoUpload}
+              className="absolute inset-0 opacity-0 cursor-pointer" 
+            />
+          </div>
+          <div className="text-center">
+            <h4 className="font-black text-sm mb-1">Company Logo</h4>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Click to upload brand identity</p>
+          </div>
+          <input 
+            type="text"
+            value={settings.companyName}
+            onChange={(e) => {
+              updateSettings({ companyName: e.target.value });
+              setSaveStatus('saving');
+              setTimeout(showSavedFeedback, 500);
+            }}
+            placeholder="Organization Name"
+            className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-center text-sm border-none focus:ring-2 focus:ring-indigo-500/20"
+          />
+        </div>
+      </section>
 
       <section>
         <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] mb-4 px-2">Appearance</p>

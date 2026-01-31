@@ -9,7 +9,6 @@ import TransactionForm from './components/TransactionForm';
 import Reports from './components/Reports';
 import Settings from './components/Settings';
 import AdminPanel from './components/AdminPanel';
-import { GoogleGenAI } from "@google/genai";
 
 const STORAGE_KEY = 'trackr_pro_accounting_v1';
 
@@ -35,7 +34,6 @@ const App: React.FC = () => {
   const [categories, setCategories] = useState<Record<TransactionType, string[]>>(DEFAULT_CATEGORIES);
   const [isInitialized, setIsInitialized] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [isGeneratingLogo, setIsGeneratingLogo] = useState(false);
 
   useEffect(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
@@ -71,42 +69,6 @@ const App: React.FC = () => {
     }
   }, [transactions, accounts, products, entities, settings, isInitialized, logoUrl, categories]);
 
-  const generateLogo = async () => {
-    if (isGeneratingLogo) return;
-    setIsGeneratingLogo(true);
-    try {
-      // Fix: Create GoogleGenAI instance right before making the call and use the correct model for image generation
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [
-            {
-              text: `Professional corporate logo for ${settings.companyName}. High-end, minimalist, tech-luxury. White background.`,
-            },
-          ],
-        },
-        config: {
-          imageConfig: { aspectRatio: "1:1" }
-        }
-      });
-
-      // Fix: Correctly iterate through parts to find the image part per guidelines
-      if (response.candidates?.[0]?.content?.parts) {
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData) {
-            setLogoUrl(`data:image/png;base64,${part.inlineData.data}`);
-            break;
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Logo gen failed", error);
-    } finally {
-      setIsGeneratingLogo(false);
-    }
-  };
-
   const addTransaction = (transaction: Omit<Transaction, 'id'>) => {
     const newTransaction = { ...transaction, id: crypto.randomUUID() };
     setTransactions(prev => [newTransaction, ...prev]);
@@ -140,12 +102,7 @@ const App: React.FC = () => {
   };
 
   const updateTransaction = (updatedTx: Transaction) => {
-    const oldTx = transactions.find(t => t.id === updatedTx.id);
-    if (!oldTx) return;
-
-    // This is simplified. In a real ERP, we'd handle inventory and balance reversals carefully.
     setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
-    // For simplicity, we refresh the entire state if edited or just warn users.
   };
 
   const deleteTransaction = (id: string) => {
@@ -178,8 +135,14 @@ const App: React.FC = () => {
       {activeTab !== 'add' && (
         <header className="px-8 pt-10 pb-4 flex justify-between items-center z-40 animate-slide-up">
           <div className="flex items-center gap-4">
-            <div className={`h-12 w-12 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-black/[0.03] dark:border-white/5 p-1 flex items-center justify-center overflow-hidden transition-all duration-500 ${isGeneratingLogo ? 'animate-pulse' : ''}`}>
-               {logoUrl ? <img src={logoUrl} className="w-full h-full object-contain" /> : <div className="w-6 h-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />}
+            <div className="h-12 w-12 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-black/[0.03] dark:border-white/5 p-1 flex items-center justify-center overflow-hidden">
+               {logoUrl ? (
+                 <img src={logoUrl} className="w-full h-full object-contain" alt="Logo" />
+               ) : (
+                 <div className="w-full h-full flex items-center justify-center bg-indigo-50 dark:bg-indigo-900/30 text-indigo-500">
+                   <Icons.Dashboard className="w-6 h-6" />
+                 </div>
+               )}
             </div>
             <div className="flex flex-col">
               <p className="text-[9px] font-black text-indigo-600 uppercase tracking-[0.4em]">{settings.companyName}</p>
@@ -187,7 +150,7 @@ const App: React.FC = () => {
             </div>
           </div>
           <button onClick={() => setActiveTab('admin')} className="h-10 w-10 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-black/[0.03] dark:border-white/5 overflow-hidden active-scale">
-             <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${settings.companyName}`} className="w-full h-full object-cover" />
+             <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${settings.companyName}`} className="w-full h-full object-cover" alt="Profile" />
           </button>
         </header>
       )}
@@ -199,7 +162,7 @@ const App: React.FC = () => {
           {activeTab === 'inventory' && <Inventory products={products} setProducts={setProducts} currencySymbol={currencySymbol} />}
           {activeTab === 'reports' && <Reports transactions={transactions} currencySymbol={currencySymbol} />}
           {activeTab === 'add' && <TransactionForm accounts={accounts} products={products} onAdd={addTransaction} settings={settings} categories={categories} />}
-          {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={accounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} transactions={transactions} />}
+          {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={accounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} transactions={transactions} logoUrl={logoUrl} setLogoUrl={setLogoUrl} />}
           {activeTab === 'admin' && <AdminPanel transactions={transactions} accounts={accounts} settings={settings} />}
         </div>
       </main>
