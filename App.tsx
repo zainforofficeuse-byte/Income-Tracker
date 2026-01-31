@@ -40,8 +40,19 @@ const App: React.FC = () => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const currentUser = useMemo(() => users.find(u => u.id === currentUserId) || null, [users, currentUserId]);
-  const activeCompanyId = currentUser?.companyId || 'SYSTEM';
+  
+  // For Super Admin testing, we might want to see 'company-azeem' data by default if they are in 'SYSTEM'
+  const activeCompanyId = useMemo(() => {
+    if (currentUser?.role === UserRole.SUPER_ADMIN) {
+      // If we are Super Admin, we default to the first real company for testing, 
+      // or 'SYSTEM' if no companies exist.
+      return companies[0]?.id || 'SYSTEM';
+    }
+    return currentUser?.companyId || 'SYSTEM';
+  }, [currentUser, companies]);
+
   const isSuper = currentUser?.role === UserRole.SUPER_ADMIN;
+  const isAdmin = currentUser?.role === UserRole.ADMIN;
 
   const companyTransactions = useMemo(() => transactions.filter(t => t.companyId === activeCompanyId), [transactions, activeCompanyId]);
   const companyAccounts = useMemo(() => accounts.filter(a => a.companyId === activeCompanyId), [accounts, activeCompanyId]);
@@ -104,7 +115,9 @@ const App: React.FC = () => {
 
   const addTransaction = (tx: any) => {
     if (!currentUser) return;
-    const newTx = { ...tx, id: crypto.randomUUID(), companyId: currentUser.companyId, createdBy: currentUser.id };
+    const companyIdToUse = isSuper ? activeCompanyId : currentUser.companyId;
+    const newTx = { ...tx, id: crypto.randomUUID(), companyId: companyIdToUse, createdBy: currentUser.id };
+    
     setTransactions(prev => [newTx, ...prev]);
     if (tx.paymentStatus === 'PAID') {
       setAccounts(prev => prev.map(a => a.id === tx.accountId ? { ...a, balance: a.balance + (tx.type === TransactionType.INCOME ? tx.amount : -tx.amount) } : a));
@@ -123,16 +136,20 @@ const App: React.FC = () => {
   if (!isInitialized) return null;
   if (isLocked) return <AuthGuard companies={companies} users={users} onUnlock={(userId) => { setCurrentUserId(userId); setIsLocked(false); }} />;
 
+  // Full navigation suite for Super Admin to test all modules
   const navItems = isSuper ? [
     { id: 'admin', icon: Icons.Admin, label: 'System' },
-    { id: 'dashboard', icon: Icons.Dashboard, label: 'Stats' },
-    { id: 'settings', icon: Icons.Settings, label: 'Configs' },
+    { id: 'dashboard', icon: Icons.Dashboard, label: 'Hub' },
+    { id: 'ledger', icon: Icons.Ledger, label: 'Books' },
+    { id: 'add', icon: Icons.Plus, label: 'New' },
+    { id: 'inventory', icon: Icons.Inventory, label: 'Stock' },
+    { id: 'settings', icon: Icons.Settings, label: 'Setup' },
   ] : [
     { id: 'dashboard', icon: Icons.Dashboard, label: 'Hub' },
     { id: 'ledger', icon: Icons.Ledger, label: 'Books' },
     { id: 'add', icon: Icons.Plus, label: 'New' },
     { id: 'inventory', icon: Icons.Inventory, label: 'Stock' },
-    { id: 'parties', icon: Icons.Admin, label: 'Parties' },
+    { id: 'settings', icon: Icons.Settings, label: 'Setup' },
   ];
 
   return (
@@ -144,13 +161,13 @@ const App: React.FC = () => {
           </button>
           <div className="flex flex-col">
             <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest truncate max-w-[120px]">
-              {isSuper ? 'Enterprise Support' : companies.find(c => c.id === currentUser?.companyId)?.name}
+              {isSuper ? `System Mode (${companies.find(c => c.id === activeCompanyId)?.name || 'Global'})` : companies.find(c => c.id === currentUser?.companyId)?.name}
             </p>
             <h1 className="text-xl font-black tracking-tightest">TRACKR<span className="text-slate-400">.</span></h1>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {!isSuper && (
+          {!isSuper && isAdmin && (
             <button onClick={() => setActiveTab('users')} className="p-2 text-slate-400 hover:text-indigo-500 transition-colors">
               <Icons.Admin className="w-5 h-5" />
             </button>
@@ -163,7 +180,22 @@ const App: React.FC = () => {
 
       <main className="flex-1 overflow-y-auto no-scrollbar px-6 pb-40">
           {activeTab === 'dashboard' && <Dashboard transactions={companyTransactions} accounts={companyAccounts} products={companyProducts} currencySymbol={currencySymbol} />}
-          {activeTab === 'ledger' && <Ledger transactions={companyTransactions} accounts={companyAccounts} products={companyProducts} currencySymbol={currencySymbol} categories={DEFAULT_CATEGORIES} onDelete={() => {}} onUpdate={() => {}} />}
+          {activeTab === 'ledger' && (
+             <div className="space-y-6">
+               <Ledger 
+                 transactions={companyTransactions} 
+                 accounts={companyAccounts} 
+                 products={companyProducts} 
+                 currencySymbol={currencySymbol} 
+                 categories={DEFAULT_CATEGORIES} 
+                 onDelete={() => {}} 
+                 onUpdate={() => {}} 
+               />
+               <div className="mt-8 border-t border-slate-100 dark:border-white/5 pt-8">
+                  <Parties entities={companyEntities} setEntities={setEntities} currencySymbol={currencySymbol} transactions={companyTransactions} />
+               </div>
+             </div>
+          )}
           {activeTab === 'inventory' && (
             <Inventory 
               products={companyProducts} 
@@ -174,7 +206,6 @@ const App: React.FC = () => {
               activeCompanyId={activeCompanyId}
             />
           )}
-          {activeTab === 'parties' && <Parties entities={companyEntities} setEntities={setEntities} currencySymbol={currencySymbol} transactions={companyTransactions} />}
           {activeTab === 'add' && <TransactionForm accounts={companyAccounts} products={companyProducts} entities={companyEntities} onAdd={addTransaction} settings={settings} categories={DEFAULT_CATEGORIES} />}
           {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} onRegister={handleRegisterCompany} transactions={transactions} accounts={accounts} settings={settings} onUpdateConfig={() => {}} onConnect={() => {}} />}
           {activeTab === 'users' && !isSuper && <UserManagement users={companyUsers} setUsers={setUsers} currentUserRole={currentUser!.role} />}
@@ -192,9 +223,9 @@ const App: React.FC = () => {
       )}
 
       <div className="absolute bottom-10 left-0 right-0 px-6 z-50 pointer-events-none">
-        <nav className="glass rounded-[2.5rem] p-1.5 flex justify-between items-center premium-shadow pointer-events-auto">
+        <nav className="glass rounded-[2.5rem] p-1.5 flex justify-between items-center premium-shadow pointer-events-auto overflow-x-auto no-scrollbar">
           {navItems.map((item) => (
-            <button key={item.id} onClick={() => setActiveTab(item.id as Tab)} className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-3xl transition-all duration-300 ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>
+            <button key={item.id} onClick={() => setActiveTab(item.id as Tab)} className={`flex-1 min-w-[50px] flex flex-col items-center gap-1 p-3 rounded-3xl transition-all duration-300 ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>
               <item.icon className="w-5 h-5" />
               {activeTab === item.id && <span className="text-[7px] font-black uppercase tracking-widest">{item.label}</span>}
             </button>
