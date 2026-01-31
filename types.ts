@@ -5,10 +5,23 @@ export enum TransactionType {
   TRANSFER = 'TRANSFER' // Internal Transfer
 }
 
+export interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  categories: string[]; // Updated to array for multiple tags
+  purchasePrice: number;
+  sellingPrice: number;
+  stock: number;
+  minStock: number;
+}
+
 export interface Entity {
   id: string;
   name: string;
   type: 'CLIENT' | 'VENDOR';
+  email?: string;
+  phone?: string;
 }
 
 export interface Transaction {
@@ -21,6 +34,8 @@ export interface Transaction {
   accountId: string;
   toAccountId?: string; // Destination for transfers
   entityId?: string; // Client or Vendor
+  productId?: string; // Linked product for inventory
+  quantity?: number; // Quantity for inventory
 }
 
 export interface Account {
@@ -38,25 +53,22 @@ export interface UserSettings {
   companyName: string;
 }
 
-export type Tab = 'dashboard' | 'ledger' | 'add' | 'reports' | 'admin' | 'settings';
+export type Tab = 'dashboard' | 'ledger' | 'inventory' | 'add' | 'reports' | 'admin' | 'settings';
 
 export const DEFAULT_CATEGORIES: Record<TransactionType, string[]> = {
   [TransactionType.EXPENSE]: [
-    'Cost of Goods', 
-    'Marketing', 
-    'Payroll', 
-    'Software/SaaS', 
-    'Rent/Office', 
-    'Travel', 
-    'Taxes', 
+    'Inventory Purchase',
+    'Marketing',
+    'Payroll',
+    'Rent/Office',
+    'Shipping',
     'Utilities'
   ],
   [TransactionType.INCOME]: [
-    'Service Revenue', 
-    'Product Sales', 
-    'Consulting', 
-    'Interest', 
-    'Other Revenue'
+    'Product Sales',
+    'Service Revenue',
+    'Consulting',
+    'Interest'
   ],
   [TransactionType.TRANSFER]: [
     'Internal Transfer'
@@ -64,9 +76,9 @@ export const DEFAULT_CATEGORIES: Record<TransactionType, string[]> = {
 };
 
 export const CURRENCIES = [
+  { code: 'PKR', symbol: 'Rs.' },
   { code: 'USD', symbol: '$' },
   { code: 'EUR', symbol: '€' },
   { code: 'GBP', symbol: '£' },
-  { code: 'JPY', symbol: '¥' },
   { code: 'INR', symbol: '₹' }
 ];
