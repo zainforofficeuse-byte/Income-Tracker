@@ -47,12 +47,7 @@ export interface PricingRules {
 }
 
 export interface DbCloudConfig {
-  host: string;
-  port: string;
-  dbName: string;
-  dbUser: string;
-  dbPass: string;
-  bridgeUrl: string; // The PHP bridge on Hostinger
+  scriptUrl: string; // Google Apps Script URL
   autoSync: boolean;
   isConnected: boolean;
 }

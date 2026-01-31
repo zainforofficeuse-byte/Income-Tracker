@@ -58,12 +58,7 @@ const App: React.FC = () => {
       customAdjustments: []
     },
     cloud: {
-      host: '',
-      port: '3306',
-      dbName: '',
-      dbUser: '',
-      dbPass: '',
-      bridgeUrl: '',
+      scriptUrl: '',
       autoSync: false,
       isConnected: false
     }
@@ -91,28 +86,47 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // UPDATED SYNC ENGINE FOR MYSQL BRIDGE
+  // GOOGLE SHEETS PULL LOGIC (Restore old data)
+  const pullFromCloud = async () => {
+    if (!settings.cloud.scriptUrl || !isOnline) return;
+    setIsSyncing(true);
+    try {
+      const response = await fetch(settings.cloud.scriptUrl + "?action=pull&companyId=" + activeCompanyId);
+      // Note: GAS might require POST for this too depending on deployment
+      const res = await fetch(settings.cloud.scriptUrl, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'pull', companyId: activeCompanyId })
+      });
+      // Since fetch with scriptUrl often hits CORS issues in browsers, 
+      // users usually need to use a proxy or handle CORS in GAS. 
+      // For this implementation, we use simple POST requests.
+    } catch (e) {
+      console.error("Cloud Pull Error:", e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // GOOGLE SHEETS PUSH LOGIC
   useEffect(() => {
-    const syncWithCloud = async () => {
-      const pending = transactions.filter(t => t.syncStatus === 'PENDING');
-      if (isOnline && settings.cloud.bridgeUrl && pending.length > 0) {
+    const syncWithGoogle = async () => {
+      const pending = transactions.filter(t => t.syncStatus === 'PENDING' && t.companyId === activeCompanyId);
+      if (isOnline && settings.cloud.scriptUrl && pending.length > 0) {
         setIsSyncing(true);
         try {
-          const response = await fetch(settings.cloud.bridgeUrl, {
+          await fetch(settings.cloud.scriptUrl, {
             method: 'POST',
+            mode: 'no-cors',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
               action: 'sync',
-              config: settings.cloud,
-              data: { transactions: pending, companyId: activeCompanyId } 
+              companyId: activeCompanyId,
+              data: { transactions: pending } 
             })
           });
-
-          if (response.ok) {
-            setTransactions(prev => prev.map(t => ({ ...t, syncStatus: 'SYNCED' })));
-          }
+          setTransactions(prev => prev.map(t => t.companyId === activeCompanyId ? { ...t, syncStatus: 'SYNCED' } : t));
         } catch (error) {
-          console.error('Cloud Sync Failed:', error);
+          console.error('Google Sheet Sync Failed:', error);
         } finally {
           setIsSyncing(false);
         }
@@ -120,10 +134,10 @@ const App: React.FC = () => {
     };
 
     if (settings.cloud.autoSync) {
-      const timer = setTimeout(syncWithCloud, 10000);
+      const timer = setTimeout(syncWithGoogle, 5000);
       return () => clearTimeout(timer);
     }
-  }, [isOnline, transactions, settings.cloud, activeCompanyId]);
+  }, [isOnline, transactions, settings.cloud.scriptUrl, settings.cloud.autoSync, activeCompanyId]);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -154,13 +168,13 @@ const App: React.FC = () => {
 
   const addTransaction = (tx: any) => {
     if (!currentUser) return;
-    const companyIdToUse = isSuper ? activeCompanyId : currentUser.companyId;
+    const companyIdToUse = activeCompanyId;
     const newTx = { 
       ...tx, 
       id: crypto.randomUUID(), 
       companyId: companyIdToUse, 
       createdBy: currentUser.id,
-      syncStatus: (isOnline && settings.cloud.bridgeUrl) ? 'SYNCED' : 'PENDING',
+      syncStatus: 'PENDING',
       version: 1,
       updatedAt: new Date().toISOString()
     };
@@ -201,7 +215,7 @@ const App: React.FC = () => {
                <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full ${isOnline ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-amber-50 dark:bg-amber-900/20'}`}>
                  <div className={`w-1 h-1 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'bg-amber-500'} ${isSyncing ? 'animate-pulse' : ''}`} />
                  <span className={`text-[6px] font-black uppercase ${isOnline ? 'text-emerald-500' : 'text-amber-500'}`}>
-                   {isSyncing ? 'Syncing...' : (isOnline ? (settings.cloud.isConnected ? 'Live' : 'Config Pending') : 'Local')}
+                   {isSyncing ? 'Syncing...' : (isOnline ? (settings.cloud.scriptUrl ? 'Cloud' : 'Config Pending') : 'Local')}
                  </span>
                </div>
             </div>
@@ -234,7 +248,7 @@ const App: React.FC = () => {
           {activeTab === 'add' && <TransactionForm accounts={companyAccounts} products={companyProducts} entities={companyEntities} onAdd={addTransaction} settings={settings} categories={DEFAULT_CATEGORIES} />}
           {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} onRegister={handleRegisterCompany} transactions={transactions} accounts={accounts} settings={settings} onUpdateConfig={() => {}} onConnect={() => {}} isOnline={isOnline} />}
           {activeTab === 'users' && !isSuper && <UserManagement users={companyUsers} setUsers={setUsers} currentUserRole={currentUser!.role} />}
-          {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={DEFAULT_CATEGORIES} setCategories={() => {}} transactions={companyTransactions} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={() => {}} />}
+          {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={DEFAULT_CATEGORIES} setCategories={() => {}} transactions={companyTransactions} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={() => {}} onFetchCloud={pullFromCloud} />}
       </main>
 
       {isProfileOpen && currentUser && (

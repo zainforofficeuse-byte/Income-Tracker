@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Account, TransactionType, UserSettings, CURRENCIES, Product, Entity } from '../types';
 
 interface TransactionFormProps {
@@ -16,9 +16,10 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
   const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
   const [category, setCategory] = useState(categories[TransactionType.EXPENSE][0]);
   const [note, setNote] = useState('');
-  const [accountId, setAccountId] = useState(settings.activeAccountId);
+  const [accountId, setAccountId] = useState(settings.activeAccountId || (accounts[0]?.id || ''));
   const [paymentStatus, setPaymentStatus] = useState<'PAID' | 'CREDIT'>('PAID');
   const [entityId, setEntityId] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   
   const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState('1');
@@ -56,8 +57,14 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
       productId: isInventoryMode ? productId : undefined,
       quantity: isInventoryMode ? parseFloat(quantity) : undefined,
       paymentStatus,
-      date: new Date().toISOString(),
+      date: new Date(date).toISOString(),
     });
+
+    // Reset Form
+    setAmount('');
+    setNote('');
+    setProductId('');
+    setEntityId('');
   };
 
   const symbol = CURRENCIES.find(c => c.code === settings.currency)?.symbol || 'Rs.';
@@ -91,6 +98,19 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
                <button type="button" onClick={() => setPaymentStatus('CREDIT')} className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border-2 transition-all ${paymentStatus === 'CREDIT' ? 'bg-rose-500 border-rose-500 text-white' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}>Udhaar/Credit</button>
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Entry Date</label>
+                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 font-black text-[10px] border-none" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Category</label>
+                <select value={category} onChange={e => setCategory(e.target.value)} disabled={isInventoryMode} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 font-black text-[10px] border-none">
+                  {categories[type].map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
+              </div>
+            </div>
+
             <div className="space-y-1">
               <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Party (Customer/Vendor)</label>
               <select value={entityId} onChange={e => setEntityId(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 font-black text-xs border-none">
@@ -100,23 +120,35 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
             </div>
 
             {isInventoryMode && (
-              <div className="space-y-1">
-                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Product</label>
-                <select value={productId} onChange={e => setProductId(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 font-black text-xs border-none">
-                  <option value="">Select Item...</option>
-                  {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
+              <div className="grid grid-cols-[2fr_1fr] gap-3">
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Product</label>
+                  <select value={productId} onChange={e => setProductId(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 font-black text-xs border-none">
+                    <option value="">Select Item...</option>
+                    {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Qty</label>
+                  <input type="number" value={quantity} onChange={e => setQuantity(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 font-black text-xs border-none text-center" />
+                </div>
               </div>
             )}
             
-            {paymentStatus === 'PAID' && (
-              <div className="space-y-1">
-                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Wallet Account</label>
-                <select value={accountId} onChange={e => setAccountId(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 font-black text-xs border-none">
-                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
+            <div className="grid grid-cols-2 gap-3">
+              {paymentStatus === 'PAID' && (
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Wallet</label>
+                  <select value={accountId} onChange={e => setAccountId(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 font-black text-[10px] border-none">
+                    {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className={`${paymentStatus !== 'PAID' ? 'col-span-2' : ''} space-y-1`}>
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Remarks/Note</label>
+                <input value={note} onChange={e => setNote(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 font-black text-[10px] border-none" placeholder="Add extra details..." />
               </div>
-            )}
+            </div>
           </div>
 
           <button type="submit" className="w-full py-5 bg-slate-950 dark:bg-white text-white dark:text-slate-950 rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale shadow-2xl">Record Entry</button>
