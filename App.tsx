@@ -13,6 +13,7 @@ import Parties from './components/Parties';
 import AuthGuard from './components/AuthGuard';
 import ProfileModal from './components/ProfileModal';
 import LandingPage from './components/LandingPage';
+import UserManagement from './components/UserManagement';
 
 const STORAGE_KEY = 'trackr_enterprise_v11';
 const MASTER_CONFIG_URL = 'https://raw.githubusercontent.com/zainforofficeuse-byte/config-file-income-tracker/refs/heads/main/config.txt'; 
@@ -79,14 +80,13 @@ const App: React.FC = () => {
   const companyAccounts = useMemo(() => isSuper ? accounts : accounts.filter(a => a.companyId === activeCompanyId), [accounts, activeCompanyId, isSuper]);
   const companyProducts = useMemo(() => isSuper ? products : products.filter(p => p.companyId === activeCompanyId), [products, activeCompanyId, isSuper]);
   const companyEntities = useMemo(() => isSuper ? entities : entities.filter(e => e.companyId === activeCompanyId), [entities, activeCompanyId, isSuper]);
+  const companyUsers = useMemo(() => isSuper ? users : users.filter(u => u.companyId === activeCompanyId), [users, activeCompanyId, isSuper]);
 
-  // Enhanced Cloud Sync Logic (PUSH and PULL)
   const syncToCloud = async (action: 'PUSH' | 'PULL') => {
     if (!settings.cloud.scriptUrl || !isOnline) return;
     setIsSyncing(true);
     try {
       if (action === 'PUSH') {
-        // Send local data to Google Sheets
         await fetch(settings.cloud.scriptUrl, {
           method: 'POST',
           mode: 'no-cors',
@@ -98,7 +98,6 @@ const App: React.FC = () => {
           })
         });
       } else {
-        // Pull latest data from Google Sheets
         const response = await fetch(`${settings.cloud.scriptUrl}?action=SYNC_PULL&companyId=${activeCompanyId}`);
         const result = await response.json();
         if (result.status === 'success' && result.data) {
@@ -207,15 +206,13 @@ const App: React.FC = () => {
     const accId = crypto.randomUUID();
     setCompanies(prev => [...prev, { id: compId, name, registrationDate: new Date().toISOString(), status: 'ACTIVE' }]);
     setUsers(prev => [...prev, { id: userId, companyId: compId, name: adminName, email: adminEmail, password: adminPass, pin: adminPass, role: UserRole.ADMIN }]);
-    setAccounts(prev => [...prev, { id: accId, companyId: compId, name: 'Main Cash', balance: 0, color: '#6366f1', type: 'CASH' }]);
+    setAccounts(prev => [...prev, { id: accId, companyId: compId, name: 'General Liquidity', balance: 0, color: '#000000', type: 'CASH' }]);
     return userId;
   };
 
   const currencySymbol = useMemo(() => CURRENCIES.find(c => c.code === settings.currency)?.symbol || 'Rs.', [settings.currency]);
 
   if (!isInitialized) return null;
-
-  // Render Logic for Landing and Auth
   if (isLanding) return <LandingPage onGetStarted={() => setIsLanding(false)} onLogin={() => setIsLanding(false)} />;
   if (isLocked) return (
     <AuthGuard 
@@ -227,20 +224,26 @@ const App: React.FC = () => {
     />
   );
 
+  const connectionStatus = !isOnline ? 'OFFLINE' : (settings.cloud.isConnected ? 'CONNECTED' : 'NOT LINKED');
+  const connectionColor = !isOnline ? 'bg-rose-500' : (settings.cloud.isConnected ? 'bg-black dark:bg-white' : 'bg-amber-500');
+
   return (
-    <div className="h-screen w-full text-slate-900 dark:text-slate-100 max-w-6xl mx-auto relative overflow-hidden flex flex-col md:flex-row bg-[#fcfcfd] dark:bg-[#030712]">
-      {/* Sidebar with Live Connection Monitor */}
-      <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-900 border-r border-black/5 p-8 z-50">
-          <div className="mb-10 flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-black tracking-tightest">TRACKR<span className="text-indigo-600">.</span></h1>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1 truncate">{currentUser?.name}</p>
+    <div className="h-screen w-full text-black dark:text-white max-w-6xl mx-auto relative overflow-hidden flex flex-col md:flex-row bg-white dark:bg-[#030712]">
+      {/* Sidebar */}
+      <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-black border-r border-black/5 p-8 z-50">
+          <div className="mb-10 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-black tracking-tightest">TRACKR<span className="text-black dark:text-white">.</span></h1>
+              <div className={`h-2 w-2 rounded-full ${connectionColor}`} title={connectionStatus}></div>
             </div>
-            <div className={`h-2.5 w-2.5 rounded-full ${settings.cloud.isConnected && isOnline ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]'}`} title={settings.cloud.isConnected ? "Cloud Connected" : "Connection Lost"}></div>
+            <div className="px-3 py-1 bg-slate-100 dark:bg-slate-900 rounded-full inline-block self-start">
+               <p className="text-[7px] font-black uppercase tracking-widest text-slate-500">{connectionStatus}</p>
+            </div>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">{currentUser?.name}</p>
           </div>
-          <nav className="flex-1 space-y-2">
-            {(isSuper ? ['admin', 'dashboard', 'ledger', 'add', 'inventory', 'reports', 'settings'] : ['dashboard', 'ledger', 'add', 'inventory', 'reports', 'settings']).map(t => (
-               <button key={t} onClick={() => setActiveTab(t as Tab)} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/20' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5'}`}>
+          <nav className="flex-1 space-y-2 overflow-y-auto no-scrollbar">
+            {(isSuper ? ['admin', 'dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings'] : ['dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings']).map(t => (
+               <button key={t} onClick={() => setActiveTab(t as Tab)} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-black text-white shadow-xl dark:bg-white dark:text-black' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5'}`}>
                   {React.createElement((Icons as any)[t.charAt(0).toUpperCase() + t.slice(1)] || Icons.Dashboard, { className: 'w-4 h-4' })}
                   {t}
                </button>
@@ -248,19 +251,19 @@ const App: React.FC = () => {
           </nav>
           <div className="pt-8 border-t border-black/5">
              <button onClick={() => setIsLocked(true)} className="w-full py-4 text-[9px] font-black uppercase text-rose-500 bg-rose-50 dark:bg-rose-900/10 rounded-2xl active-scale">Lock Session</button>
-             <button onClick={() => setIsLanding(true)} className="w-full py-4 text-[9px] font-black uppercase text-slate-400 mt-2 hover:text-indigo-600 transition-colors">Exit to Landing</button>
+             <button onClick={() => setIsLanding(true)} className="w-full py-4 text-[9px] font-black uppercase text-slate-400 mt-2 hover:text-black transition-colors">Exit Home</button>
           </div>
       </aside>
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
         <header className="px-8 pt-10 pb-4 flex justify-between items-center z-40 md:hidden">
           <div className="flex items-center gap-4">
-            <div className="h-10 w-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-xl"><Icons.Dashboard className="w-5 h-5 text-white" /></div>
+            <div className="h-10 w-10 rounded-xl bg-black dark:bg-white flex items-center justify-center shadow-xl"><Icons.Dashboard className="w-5 h-5 text-white dark:text-black" /></div>
             <h1 className="text-xl font-black tracking-tightest">TRACKR.</h1>
           </div>
           <div className="flex items-center gap-3">
-             <div className={`h-2 w-2 rounded-full ${settings.cloud.isConnected ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
-             <button onClick={() => setIsProfileOpen(true)} className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-black text-indigo-500 border-2 border-indigo-500/10">{currentUser?.name[0]}</button>
+             <div className={`h-2 w-2 rounded-full ${connectionColor}`}></div>
+             <button onClick={() => setIsProfileOpen(true)} className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-black text-black dark:text-white border-2 border-black/5">{currentUser?.name[0]}</button>
           </div>
         </header>
 
@@ -275,8 +278,9 @@ const App: React.FC = () => {
             {activeTab === 'inventory' && <Inventory products={companyProducts} setProducts={setProducts} currencySymbol={currencySymbol} globalSettings={settings} onNewTags={(tags) => setSettings(prev => ({...prev, inventoryCategories: Array.from(new Set([...prev.inventoryCategories, ...tags]))}))} activeCompanyId={activeCompanyId} />}
             {activeTab === 'add' && <TransactionForm accounts={companyAccounts} products={companyProducts} entities={companyEntities} onAdd={addTransaction} settings={settings} categories={categories} />}
             {activeTab === 'reports' && <Reports transactions={companyTransactions} products={companyProducts} entities={companyEntities} accounts={companyAccounts} currencySymbol={currencySymbol} />}
+            {activeTab === 'users' && <UserManagement users={companyUsers} setUsers={setUsers} currentUserRole={currentUser?.role || UserRole.STAFF} />}
             {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} transactions={companyTransactions} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={(tag) => setSettings(p => ({...p, inventoryCategories: p.inventoryCategories.filter(t => t !== tag)}))} onFetchCloud={() => syncToCloud('PULL')} />}
-            {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} onRegister={handleRegisterCompany} transactions={transactions} accounts={accounts} settings={settings} onUpdateConfig={() => {}} onConnect={() => syncToCloud('PUSH')} isOnline={isOnline} />}
+            {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} setCompanies={setCompanies} users={users} onRegister={handleRegisterCompany} transactions={transactions} accounts={accounts} settings={settings} onUpdateConfig={() => {}} onConnect={() => syncToCloud('PUSH')} isOnline={isOnline} />}
         </main>
       </div>
 
@@ -284,19 +288,17 @@ const App: React.FC = () => {
         <ProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onSave={(u) => setUsers(prev => prev.map(p => p.id === u.id ? u : p))} onLogout={() => { setIsProfileOpen(false); setIsLocked(true); }} />
       )}
 
-      {/* Cloud Sync Overlay */}
       {isSyncing && (
-        <div className="fixed top-6 right-6 z-[100] bg-indigo-600 text-white px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest shadow-2xl animate-in slide-in-from-right-10 flex items-center gap-2">
-           <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
-           Syncing Ledger...
+        <div className="fixed top-6 right-6 z-[100] bg-black text-white dark:bg-white dark:text-black px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest shadow-2xl animate-in slide-in-from-right-10 flex items-center gap-2">
+           <div className="w-2 h-2 bg-white dark:bg-black rounded-full animate-ping"></div>
+           Processing...
         </div>
       )}
 
-      {/* Mobile Navigation */}
       <div className="md:hidden absolute bottom-10 left-0 right-0 px-6 z-50 pointer-events-none">
         <nav className="glass rounded-[2.5rem] p-1.5 flex justify-between items-center premium-shadow pointer-events-auto overflow-x-auto no-scrollbar">
-          {(isSuper ? ['admin', 'dashboard', 'ledger', 'add', 'inventory', 'reports', 'settings'] : ['dashboard', 'ledger', 'add', 'inventory', 'reports', 'settings']).map((id) => (
-            <button key={id} onClick={() => setActiveTab(id as Tab)} className={`flex-1 min-w-[50px] flex flex-col items-center gap-1 p-3 rounded-3xl transition-all ${activeTab === id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400'}`}>
+          {(isSuper ? ['admin', 'dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings'] : ['dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings']).map((id) => (
+            <button key={id} onClick={() => setActiveTab(id as Tab)} className={`flex-1 min-w-[50px] flex flex-col items-center gap-1 p-3 rounded-3xl transition-all ${activeTab === id ? 'bg-black text-white shadow-lg dark:bg-white dark:text-black' : 'text-slate-400'}`}>
               {React.createElement((Icons as any)[id.charAt(0).toUpperCase() + id.slice(1)] || Icons.Dashboard, { className: 'w-4 h-4' })}
             </button>
           ))}

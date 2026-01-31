@@ -10,29 +10,49 @@ interface UserManagementProps {
 
 const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, currentUserRole }) => {
   const [isAdding, setIsAdding] = useState(false);
-  // pin is now part of User type in types.ts
-  const [newUser, setNewUser] = useState<Partial<User>>({ name: '', role: UserRole.STAFF, pin: '' });
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<Partial<User>>({ name: '', role: UserRole.STAFF, pin: '' });
 
-  const addUser = () => {
-    // Corrected pin validation
-    if (!newUser.name || !newUser.pin || newUser.pin.length !== 4) return;
-    
-    // Ensuring all mandatory User fields are provided when creating a new record
-    setUsers(prev => [...prev, { 
-      ...newUser, 
-      id: crypto.randomUUID(),
-      companyId: users[0]?.companyId || 'SYSTEM',
-      email: `${newUser.name?.toLowerCase().replace(/\s/g, '')}@trackr.com`,
-      password: newUser.pin || '1234',
-      pin: newUser.pin || '1234'
-    } as User]);
-    
-    setNewUser({ name: '', role: UserRole.STAFF, pin: '' });
+  const resetForm = () => {
+    setFormData({ name: '', role: UserRole.STAFF, pin: '' });
     setIsAdding(false);
+    setEditingUserId(null);
+  };
+
+  const handleAction = () => {
+    if (!formData.name || !formData.pin || formData.pin.length !== 4) return;
+
+    if (editingUserId) {
+      // Edit Mode
+      setUsers(prev => prev.map(u => u.id === editingUserId ? { 
+        ...u, 
+        name: formData.name!, 
+        role: formData.role!, 
+        pin: formData.pin!,
+        password: formData.pin! // Update password to match pin for simplicity
+      } : u));
+    } else {
+      // Add Mode
+      setUsers(prev => [...prev, { 
+        id: crypto.randomUUID(),
+        companyId: users[0]?.companyId || 'SYSTEM',
+        name: formData.name!,
+        email: `${formData.name?.toLowerCase().replace(/\s/g, '')}@trackr.com`,
+        password: formData.pin!,
+        pin: formData.pin!,
+        role: formData.role || UserRole.STAFF
+      } as User]);
+    }
+    resetForm();
+  };
+
+  const startEdit = (user: User) => {
+    setEditingUserId(user.id);
+    setFormData({ name: user.name, role: user.role, pin: user.pin });
+    setIsAdding(true);
   };
 
   const deleteUser = (id: string) => {
-    if (id === 'super-admin-1' || id === 'admin-1') return;
     if (confirm('Remove this staff member?')) {
       setUsers(prev => prev.filter(u => u.id !== id));
     }
@@ -45,57 +65,70 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, curren
           <h2 className="text-2xl font-black tracking-tightest">Staff Hub</h2>
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Manage Permissions</p>
         </div>
-        <button onClick={() => setIsAdding(!isAdding)} className="h-12 w-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg active-scale">
-          {isAdding ? '×' : '+'}
+        <button onClick={() => { isAdding ? resetForm() : setIsAdding(true); }} className={`h-12 w-12 rounded-2xl flex items-center justify-center shadow-lg active-scale transition-all ${isAdding ? 'bg-black text-white dark:bg-white dark:text-black rotate-45' : 'bg-black text-white dark:bg-white dark:text-black'}`}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
         </button>
       </div>
 
       {isAdding && (
-        <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] premium-shadow border-2 border-indigo-500/10 space-y-6">
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] premium-shadow border-2 border-black/5 dark:border-white/5 space-y-6 animate-in zoom-in-95 duration-300">
+           <h3 className="text-lg font-black uppercase tracking-tightest">{editingUserId ? 'Modify Member' : 'Provision New Seat'}</h3>
            <div className="space-y-1">
              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Full Name</label>
-             <input value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none" />
+             <input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none focus:ring-1 focus:ring-black/10" placeholder="Azeem Ahmed" />
            </div>
            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Security PIN</label>
-                <input maxLength={4} value={newUser.pin} onChange={e => setNewUser({...newUser, pin: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none text-center tracking-widest" placeholder="xxxx" />
+                <input maxLength={4} value={formData.pin} onChange={e => setFormData({...formData, pin: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none text-center tracking-widest" placeholder="xxxx" />
               </div>
               <div className="space-y-1">
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Assign Role</label>
-                <select value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value as UserRole})} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-[10px] border-none uppercase">
-                   <option value={UserRole.STAFF}>Staff (Basic)</option>
-                   <option value={UserRole.MANAGER}>Manager (Mid)</option>
+                <select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as UserRole})} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-[10px] border-none uppercase appearance-none">
+                   <option value={UserRole.STAFF}>Staff (Operations)</option>
+                   <option value={UserRole.MANAGER}>Manager (Control)</option>
                    <option value={UserRole.ADMIN}>Company Admin</option>
-                   {currentUserRole === UserRole.SUPER_ADMIN && (
-                     <option value={UserRole.SUPER_ADMIN}>System Support (SUPER)</option>
-                   )}
                 </select>
               </div>
            </div>
-           <button onClick={addUser} className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale">Create Profile</button>
+           <div className="flex gap-2">
+              <button onClick={handleAction} className="flex-1 py-5 bg-black text-white dark:bg-white dark:text-black rounded-full font-black text-xs uppercase tracking-widest active-scale">
+                {editingUserId ? 'Save Changes' : 'Confirm Provision'}
+              </button>
+              {editingUserId && (
+                <button onClick={resetForm} className="px-6 py-5 bg-slate-100 dark:bg-slate-800 rounded-full font-black text-[10px] uppercase tracking-widest">Cancel</button>
+              )}
+           </div>
         </div>
       )}
 
       <div className="space-y-3">
-        {users.filter(u => currentUserRole === UserRole.SUPER_ADMIN ? true : u.role !== UserRole.SUPER_ADMIN).map(u => (
-          <div key={u.id} className="bg-white dark:bg-slate-900 rounded-[2rem] p-5 premium-shadow border border-black/[0.02] flex items-center justify-between">
+        {users.map(u => (
+          <div key={u.id} className="bg-white dark:bg-slate-900 rounded-[2rem] p-5 premium-shadow border border-black/[0.02] flex items-center justify-between group">
             <div className="flex items-center gap-4">
-               <div className="h-14 w-14 rounded-2xl bg-indigo-50 dark:bg-slate-800 flex items-center justify-center text-indigo-500 font-black text-xl uppercase">
+               <div className="h-14 w-14 rounded-2xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-black dark:text-white font-black text-xl uppercase">
                  {u.avatar ? <img src={u.avatar} className="w-full h-full object-cover" /> : u.name[0]}
                </div>
                <div>
                  <h4 className="font-black text-sm">{u.name}</h4>
-                 <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${u.role === UserRole.SUPER_ADMIN ? 'bg-rose-100 text-rose-600' : (u.role === UserRole.ADMIN ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400')}`}>
-                   {u.role.replace('_', ' ')}
-                 </span>
+                 <div className="flex items-center gap-2 mt-1">
+                    <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${u.role === UserRole.SUPER_ADMIN ? 'bg-rose-100 text-rose-600' : (u.role === UserRole.ADMIN ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-slate-100 text-slate-400')}`}>
+                      {u.role.replace('_', ' ')}
+                    </span>
+                    <span className="text-[7px] font-black text-slate-300 uppercase">PIN: {u.pin}</span>
+                 </div>
                </div>
             </div>
-            {u.id !== 'super-admin-1' && u.id !== 'admin-1' && (
-              <button onClick={() => deleteUser(u.id)} className="h-10 w-10 text-rose-500 hover:bg-rose-50 rounded-xl flex items-center justify-center transition-colors">
-                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            <div className="flex items-center gap-1">
+              <button onClick={() => startEdit(u)} className="h-10 w-10 text-slate-400 hover:text-black dark:hover:text-white rounded-xl flex items-center justify-center transition-colors active-scale">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
               </button>
-            )}
+              {u.role !== UserRole.SUPER_ADMIN && (
+                <button onClick={() => deleteUser(u.id)} className="h-10 w-10 text-rose-500 hover:bg-rose-50 rounded-xl flex items-center justify-center transition-colors active-scale">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>
