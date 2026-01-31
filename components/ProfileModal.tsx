@@ -11,7 +11,7 @@ interface ProfileModalProps {
 
 const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSave, onLogout }) => {
   const [name, setName] = useState(user.name);
-  const [pin, setPin] = useState(user.pin);
+  const [pin, setPin] = useState(user.pin); // user.pin is now correctly typed in User interface
 
   const handleSave = () => {
     if (name.trim() === '' || pin.length !== 4) return;

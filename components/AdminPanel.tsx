@@ -6,7 +6,8 @@ import { Icons } from '../constants';
 interface AdminPanelProps {
   companies: Company[];
   users: User[];
-  onRegister: (name: string, adminName: string, adminPin: string) => void;
+  // Updated to match handleRegisterCompany signature in App.tsx
+  onRegister: (name: string, adminName: string, adminEmail: string, adminPass: string) => any;
   transactions: Transaction[];
   accounts: Account[];
   settings: UserSettings;
@@ -19,6 +20,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, t
   const [isAdding, setIsAdding] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newAdminName, setNewAdminName] = useState('');
+  const [newAdminEmail, setNewAdminEmail] = useState(''); // Added email state
   const [newAdminPin, setNewAdminPin] = useState('');
 
   const syncStats = useMemo(() => {
@@ -27,10 +29,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, t
   }, [transactions]);
 
   const handleRegister = () => {
-    if (!newCompanyName || !newAdminName || newAdminPin.length !== 4) return;
-    onRegister(newCompanyName, newAdminName, newAdminPin);
+    // Corrected to pass all 4 required arguments to onRegister
+    if (!newCompanyName || !newAdminName || !newAdminEmail || newAdminPin.length !== 4) return;
+    onRegister(newCompanyName, newAdminName, newAdminEmail, newAdminPin);
     setNewCompanyName('');
     setNewAdminName('');
+    setNewAdminEmail('');
     setNewAdminPin('');
     setIsAdding(false);
   };
@@ -97,6 +101,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, t
              <div className="space-y-1">
                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Company Name</label>
                <input value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none" placeholder="e.g. Azeem Solutions" />
+             </div>
+             {/* Added Email Input for New Companies */}
+             <div className="space-y-1">
+               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Admin Email</label>
+               <input value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none" placeholder="admin@company.com" />
              </div>
              <div className="grid grid-cols-2 gap-4">
                <div className="space-y-1">

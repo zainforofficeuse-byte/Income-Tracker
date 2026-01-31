@@ -1,135 +1,151 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { User, Company, UserRole } from '../types';
 
 interface AuthGuardProps {
   companies: Company[];
   users: User[];
   onUnlock: (userId: string) => void;
+  onRegister: (name: string, adminName: string, adminEmail: string, adminPass: string) => string;
 }
 
-const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock }) => {
-  const [step, setStep] = useState<'COMPANY' | 'USER' | 'PIN'>('COMPANY');
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState(false);
+const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onRegister }) => {
+  const [view, setView] = useState<'LOGIN' | 'SIGNUP'>('LOGIN');
+  const [formData, setFormData] = useState({ 
+    company: '', 
+    name: '', 
+    email: '', 
+    password: '',
+    confirmPassword: ''
+  });
+  const [error, setError] = useState('');
 
-  const filteredUsers = useMemo(() => {
-    if (!selectedCompanyId) return [];
-    return users.filter(u => u.companyId === selectedCompanyId);
-  }, [selectedCompanyId, users]);
-
-  const handlePinPress = (num: string) => {
-    if (pin.length < 4) {
-      const newPin = pin + num;
-      setPin(newPin);
-      if (newPin.length === 4) {
-        if (selectedUser && selectedUser.pin === newPin) {
-          onUnlock(selectedUser.id);
-        } else {
-          setError(true);
-          setTimeout(() => { setPin(''); setError(false); }, 500);
-        }
-      }
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const user = users.find(u => u.email === formData.email && u.password === formData.password);
+    if (user) {
+      onUnlock(user.id);
+    } else {
+      setError('Invalid email or password');
+      setTimeout(() => setError(''), 3000);
     }
   };
 
-  if (step === 'COMPANY') {
-    return (
-      <div className="h-full w-full flex flex-col items-center justify-center p-8 bg-[#fcfcfd] dark:bg-[#0f172a] animate-in fade-in duration-500 overflow-y-auto no-scrollbar">
-        <div className="h-16 w-16 rounded-2xl bg-indigo-600 shadow-xl mb-6 flex items-center justify-center text-white font-black text-2xl">T</div>
-        <h2 className="text-2xl font-black tracking-tightest mb-2 text-center uppercase text-slate-900 dark:text-white">Enterprise Portal</h2>
-        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-12">Select Organization</p>
-        
-        <div className="w-full max-w-xs space-y-4 pb-10">
-          <button 
-            onClick={() => { setSelectedCompanyId('SYSTEM'); setStep('USER'); }}
-            className="w-full flex items-center justify-between p-6 bg-slate-900 dark:bg-slate-800 text-white rounded-[2rem] active-scale transition-all border border-white/10"
-          >
-             <span className="font-black text-xs uppercase tracking-widest">System Master</span>
-             <div className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.5)]"></div>
-          </button>
+  const handleSignup = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.company || !formData.name || !formData.email || !formData.password) {
+      setError('All fields are required');
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    if (users.find(u => u.email === formData.email)) {
+      setError('Email already registered');
+      return;
+    }
 
-          <div className="flex items-center gap-4 py-4">
-             <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800"></div>
-             <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">Registered Clients</span>
-             <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800"></div>
-          </div>
-
-          {companies.map(c => (
-            <button key={c.id} onClick={() => { setSelectedCompanyId(c.id); setStep('USER'); }} className="w-full flex items-center gap-4 p-5 bg-white dark:bg-slate-800/80 rounded-[2rem] premium-shadow border border-black/[0.03] dark:border-white/5 active-scale text-left">
-               <div className="h-12 w-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-500 font-black text-xl">{c.name[0]}</div>
-               <div>
-                  <p className="font-black text-sm text-slate-900 dark:text-white">{c.name}</p>
-                  <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Active License</p>
-               </div>
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (step === 'USER') {
-    return (
-      <div className="h-full w-full flex flex-col items-center justify-center p-8 bg-[#fcfcfd] dark:bg-[#0f172a] animate-in slide-in-from-right-10 duration-500 overflow-y-auto no-scrollbar">
-        <button onClick={() => setStep('COMPANY')} className="mb-8 text-[9px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-          Switch Organization
-        </button>
-        <h2 className="text-xl font-black tracking-tightest mb-8 text-center uppercase text-slate-900 dark:text-white">Identify Profile</h2>
-        <div className="grid grid-cols-2 gap-6 w-full max-w-xs pb-10">
-          {filteredUsers.map(u => (
-            <button key={u.id} onClick={() => { setSelectedUser(u); setStep('PIN'); }} className="flex flex-col items-center gap-3 active-scale group">
-               <div className="h-24 w-24 rounded-[3rem] bg-indigo-50 dark:bg-slate-800 flex items-center justify-center border-2 border-transparent group-hover:border-indigo-500 transition-all overflow-hidden text-2xl font-black text-indigo-500 shadow-sm">
-                  {u.avatar ? <img src={u.avatar} className="w-full h-full object-cover" /> : u.name[0]}
-               </div>
-               <div className="text-center">
-                 <p className="text-xs font-black text-slate-900 dark:text-white">{u.name}</p>
-                 <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{u.role}</p>
-               </div>
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
+    const newId = onRegister(formData.company, formData.name, formData.email, formData.password);
+    onUnlock(newId);
+  };
 
   return (
-    <div className="h-full w-full flex flex-col items-center justify-between py-16 px-8 bg-[#fcfcfd] dark:bg-[#0f172a] animate-in zoom-in-95 duration-500">
-      <div className="flex flex-col items-center">
-        <button onClick={() => { setSelectedUser(null); setStep('USER'); setPin(''); }} className="mb-8 text-[9px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
-           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-           Back to Users
-        </button>
-        <div className="h-24 w-24 rounded-[2.5rem] bg-indigo-50 dark:bg-slate-800 flex items-center justify-center border-4 border-white dark:border-slate-800 shadow-2xl overflow-hidden mb-6 text-3xl font-black text-indigo-500">
-           {selectedUser?.avatar ? <img src={selectedUser.avatar} className="w-full h-full object-cover" /> : selectedUser?.name[0]}
-        </div>
-        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Hi, {selectedUser?.name.split(' ')[0]}</h3>
-        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">Enter Security PIN</p>
-      </div>
-
-      <div className="space-y-10 w-full max-w-xs flex flex-col items-center pb-10">
-        <div className={`flex gap-6 ${error ? 'animate-bounce' : ''}`}>
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className={`h-4 w-4 rounded-full transition-all duration-300 ${pin.length > i ? (error ? 'bg-rose-500' : 'bg-indigo-600 scale-125') : 'bg-slate-200 dark:bg-slate-800'}`} />
-          ))}
+    <div className="h-full w-full flex flex-col items-center justify-center p-8 bg-[#fcfcfd] dark:bg-[#030712] animate-in fade-in duration-500 overflow-y-auto">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-10">
+           <div className="h-16 w-16 rounded-2xl bg-indigo-600 mb-6 flex items-center justify-center text-white font-black text-2xl shadow-2xl mx-auto">T</div>
+           <h2 className="text-3xl font-black tracking-tightest uppercase">TRACKR<span className="text-indigo-600">.</span></h2>
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 italic">Enterprise Gateway</p>
         </div>
 
-        <div className="grid grid-cols-3 gap-x-8 gap-y-6">
-          {['1','2','3','4','5','6','7','8','9','','0','C'].map((val, idx) => (
-            val === '' ? <div key={idx} /> : (
-              <button 
-                key={idx} 
-                onClick={() => val === 'C' ? setPin('') : handlePinPress(val)}
-                className="h-16 w-16 rounded-full flex items-center justify-center text-xl font-black text-slate-900 dark:text-white active:bg-slate-100 dark:active:bg-slate-800 transition-colors"
-              >
-                {val}
-              </button>
-            )
-          ))}
-        </div>
+        {error && (
+          <div className="mb-6 p-4 bg-rose-50 dark:bg-rose-900/10 text-rose-500 text-[10px] font-black uppercase tracking-widest rounded-2xl text-center animate-shake">
+            {error}
+          </div>
+        )}
+
+        {view === 'LOGIN' ? (
+          <form onSubmit={handleLogin} className="space-y-4 animate-in slide-in-from-bottom-4">
+             <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Email Address</label>
+                <input 
+                  type="email"
+                  placeholder="name@company.com" 
+                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border-none shadow-sm" 
+                  value={formData.email} 
+                  onChange={e => setFormData({...formData, email: e.target.value})} 
+                />
+             </div>
+             <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Password</label>
+                <input 
+                  type="password"
+                  placeholder="••••••••" 
+                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border-none shadow-sm" 
+                  value={formData.password} 
+                  onChange={e => setFormData({...formData, password: e.target.value})} 
+                />
+             </div>
+             <button type="submit" className="w-full py-5 mt-4 bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale shadow-xl shadow-indigo-500/20">Sign In</button>
+             <button type="button" onClick={() => setView('SIGNUP')} className="w-full text-[10px] font-black text-indigo-600 uppercase tracking-widest pt-4">Need a business account? Sign Up</button>
+          </form>
+        ) : (
+          <form onSubmit={handleSignup} className="space-y-4 animate-in slide-in-from-bottom-4">
+             <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Business Name</label>
+                <input 
+                  placeholder="Azeem Traders" 
+                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border-none shadow-sm" 
+                  value={formData.company} 
+                  onChange={e => setFormData({...formData, company: e.target.value})} 
+                />
+             </div>
+             <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Admin Full Name</label>
+                <input 
+                  placeholder="Zain Azeem" 
+                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border-none shadow-sm" 
+                  value={formData.name} 
+                  onChange={e => setFormData({...formData, name: e.target.value})} 
+                />
+             </div>
+             <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Email</label>
+                <input 
+                  type="email"
+                  placeholder="admin@trackr.com" 
+                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border-none shadow-sm" 
+                  value={formData.email} 
+                  onChange={e => setFormData({...formData, email: e.target.value})} 
+                />
+             </div>
+             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Password</label>
+                   <input 
+                     type="password"
+                     placeholder="••••" 
+                     className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border-none shadow-sm" 
+                     value={formData.password} 
+                     onChange={e => setFormData({...formData, password: e.target.value})} 
+                   />
+                </div>
+                <div className="space-y-1">
+                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Confirm</label>
+                   <input 
+                     type="password"
+                     placeholder="••••" 
+                     className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border-none shadow-sm" 
+                     value={formData.confirmPassword} 
+                     onChange={e => setFormData({...formData, confirmPassword: e.target.value})} 
+                   />
+                </div>
+             </div>
+             <button type="submit" className="w-full py-5 mt-4 bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale shadow-xl shadow-indigo-500/20">Create My ERP</button>
+             <button type="button" onClick={() => setView('LOGIN')} className="w-full text-[10px] font-black text-indigo-600 uppercase tracking-widest pt-4">Already registered? Login</button>
+          </form>
+        )}
       </div>
     </div>
   );

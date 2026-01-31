@@ -10,11 +10,23 @@ interface UserManagementProps {
 
 const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, currentUserRole }) => {
   const [isAdding, setIsAdding] = useState(false);
+  // pin is now part of User type in types.ts
   const [newUser, setNewUser] = useState<Partial<User>>({ name: '', role: UserRole.STAFF, pin: '' });
 
   const addUser = () => {
-    if (!newUser.name || newUser.pin?.length !== 4) return;
-    setUsers(prev => [...prev, { ...newUser, id: crypto.randomUUID() } as User]);
+    // Corrected pin validation
+    if (!newUser.name || !newUser.pin || newUser.pin.length !== 4) return;
+    
+    // Ensuring all mandatory User fields are provided when creating a new record
+    setUsers(prev => [...prev, { 
+      ...newUser, 
+      id: crypto.randomUUID(),
+      companyId: users[0]?.companyId || 'SYSTEM',
+      email: `${newUser.name?.toLowerCase().replace(/\s/g, '')}@trackr.com`,
+      password: newUser.pin || '1234',
+      pin: newUser.pin || '1234'
+    } as User]);
+    
     setNewUser({ name: '', role: UserRole.STAFF, pin: '' });
     setIsAdding(false);
   };

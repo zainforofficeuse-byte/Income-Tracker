@@ -1,5 +1,4 @@
 
-
 export enum TransactionType {
   INCOME = 'INCOME',
   EXPENSE = 'EXPENSE',
@@ -25,7 +24,9 @@ export interface User {
   id: string;
   companyId: string;
   name: string;
-  pin: string;
+  email: string;
+  password: string; // Stored in local storage for this demo
+  pin: string; // Added pin property for staff hub and security
   role: UserRole;
   avatar?: string;
 }
@@ -75,7 +76,7 @@ export interface Product {
   sellingPrice: number;
   stock: number;
   minStock: number;
-  imageUrl?: string; // Supporting product photos
+  imageUrl?: string; 
 }
 
 export interface Entity {
@@ -88,7 +89,6 @@ export interface Entity {
   balance: number; 
 }
 
-// Fixed: Defined CartItem interface to be shared across components
 export interface CartItem {
   id: string;
   productId: string;
@@ -110,7 +110,6 @@ export interface Transaction {
   entityId?: string; 
   productId?: string; 
   quantity?: number; 
-  // Fixed: Added cart property to Transaction interface to resolve missing property error in Reports.tsx
   cart?: CartItem[];
   paymentStatus: 'PAID' | 'CREDIT';
   createdBy: string; 
