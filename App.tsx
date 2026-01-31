@@ -14,10 +14,9 @@ import AuthGuard from './components/AuthGuard';
 import ProfileModal from './components/ProfileModal';
 import LandingPage from './components/LandingPage';
 
-const STORAGE_KEY = 'trackr_enterprise_v9';
+const STORAGE_KEY = 'trackr_enterprise_v11';
 const MASTER_CONFIG_URL = 'https://raw.githubusercontent.com/zainforofficeuse-byte/config-file-income-tracker/refs/heads/main/config.txt'; 
 
-// Default Super Admin with Email/Password
 const INITIAL_USERS: User[] = [
   { 
     id: 'system-sa', 
@@ -25,7 +24,7 @@ const INITIAL_USERS: User[] = [
     name: 'Super Admin', 
     email: 'super@trackr.com', 
     password: 'admin123', 
-    pin: '1234', // Added pin for super admin
+    pin: '1234', 
     role: UserRole.SUPER_ADMIN 
   }
 ];
@@ -81,6 +80,45 @@ const App: React.FC = () => {
   const companyProducts = useMemo(() => isSuper ? products : products.filter(p => p.companyId === activeCompanyId), [products, activeCompanyId, isSuper]);
   const companyEntities = useMemo(() => isSuper ? entities : entities.filter(e => e.companyId === activeCompanyId), [entities, activeCompanyId, isSuper]);
 
+  // Enhanced Cloud Sync Logic (PUSH and PULL)
+  const syncToCloud = async (action: 'PUSH' | 'PULL') => {
+    if (!settings.cloud.scriptUrl || !isOnline) return;
+    setIsSyncing(true);
+    try {
+      if (action === 'PUSH') {
+        // Send local data to Google Sheets
+        await fetch(settings.cloud.scriptUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'SYNC_PUSH',
+            companyId: activeCompanyId,
+            data: { transactions, accounts, products, entities, users, companies, settings }
+          })
+        });
+      } else {
+        // Pull latest data from Google Sheets
+        const response = await fetch(`${settings.cloud.scriptUrl}?action=SYNC_PULL&companyId=${activeCompanyId}`);
+        const result = await response.json();
+        if (result.status === 'success' && result.data) {
+          const d = result.data;
+          if (d.transactions) setTransactions(d.transactions);
+          if (d.accounts) setAccounts(d.accounts);
+          if (d.products) setProducts(d.products);
+          if (d.entities) setEntities(d.entities);
+          if (d.users) setUsers(prev => [...prev.filter(u => u.id === 'system-sa'), ...d.users]);
+        }
+      }
+      setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, isConnected: true } }));
+    } catch (err) {
+      console.error("Cloud Sync Error:", err);
+      setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, isConnected: false } }));
+    } finally {
+      setTimeout(() => setIsSyncing(false), 800);
+    }
+  };
+
   useEffect(() => {
     const fetchMasterConfig = async () => {
       try {
@@ -114,7 +152,6 @@ const App: React.FC = () => {
           setSettings(prev => ({
             ...prev,
             ...p.settings,
-            pricingRules: { ...prev.pricingRules, ...(p.settings.pricingRules || {}) },
             cloud: { ...prev.cloud, ...(p.settings.cloud || prev.cloud) }
           }));
         }
@@ -127,10 +164,22 @@ const App: React.FC = () => {
   useEffect(() => {
     if (isInitialized) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ companies, users, transactions, accounts, products, entities, categories, settings }));
+      if (settings.cloud.autoSync && !isLanding && !isLocked) syncToCloud('PUSH');
     }
     if (settings.darkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
-  }, [companies, users, transactions, accounts, products, entities, categories, isInitialized, settings]);
+  }, [companies, users, transactions, accounts, products, entities, categories, isInitialized, settings, isLanding, isLocked]);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const addTransaction = (tx: any) => {
     if (!currentUser) return;
@@ -157,25 +206,37 @@ const App: React.FC = () => {
     const userId = crypto.randomUUID();
     const accId = crypto.randomUUID();
     setCompanies(prev => [...prev, { id: compId, name, registrationDate: new Date().toISOString(), status: 'ACTIVE' }]);
-    // Populating pin field with adminPass during registration
     setUsers(prev => [...prev, { id: userId, companyId: compId, name: adminName, email: adminEmail, password: adminPass, pin: adminPass, role: UserRole.ADMIN }]);
-    setAccounts(prev => [...prev, { id: accId, companyId: compId, name: 'Cash Account', balance: 0, color: '#6366f1', type: 'CASH' }]);
+    setAccounts(prev => [...prev, { id: accId, companyId: compId, name: 'Main Cash', balance: 0, color: '#6366f1', type: 'CASH' }]);
     return userId;
   };
 
   const currencySymbol = useMemo(() => CURRENCIES.find(c => c.code === settings.currency)?.symbol || 'Rs.', [settings.currency]);
 
   if (!isInitialized) return null;
-  if (isLanding) return <LandingPage onGetStarted={() => { setIsLanding(false); }} onLogin={() => { setIsLanding(false); }} />;
-  if (isLocked) return <AuthGuard companies={companies} users={users} onUnlock={(userId) => { setCurrentUserId(userId); setIsLocked(false); }} onRegister={handleRegisterCompany} />;
+
+  // Render Logic for Landing and Auth
+  if (isLanding) return <LandingPage onGetStarted={() => setIsLanding(false)} onLogin={() => setIsLanding(false)} />;
+  if (isLocked) return (
+    <AuthGuard 
+      companies={companies} 
+      users={users} 
+      onUnlock={(userId) => { setCurrentUserId(userId); setIsLocked(false); }} 
+      onRegister={handleRegisterCompany} 
+      onBack={() => setIsLanding(true)} 
+    />
+  );
 
   return (
     <div className="h-screen w-full text-slate-900 dark:text-slate-100 max-w-6xl mx-auto relative overflow-hidden flex flex-col md:flex-row bg-[#fcfcfd] dark:bg-[#030712]">
-      {/* Responsive Sidebar */}
+      {/* Sidebar with Live Connection Monitor */}
       <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-900 border-r border-black/5 p-8 z-50">
-          <div className="mb-12">
-            <h1 className="text-2xl font-black tracking-tightest">TRACKR<span className="text-indigo-600">.</span></h1>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 truncate">{currentUser?.name}</p>
+          <div className="mb-10 flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-black tracking-tightest">TRACKR<span className="text-indigo-600">.</span></h1>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1 truncate">{currentUser?.name}</p>
+            </div>
+            <div className={`h-2.5 w-2.5 rounded-full ${settings.cloud.isConnected && isOnline ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]'}`} title={settings.cloud.isConnected ? "Cloud Connected" : "Connection Lost"}></div>
           </div>
           <nav className="flex-1 space-y-2">
             {(isSuper ? ['admin', 'dashboard', 'ledger', 'add', 'inventory', 'reports', 'settings'] : ['dashboard', 'ledger', 'add', 'inventory', 'reports', 'settings']).map(t => (
@@ -186,8 +247,8 @@ const App: React.FC = () => {
             ))}
           </nav>
           <div className="pt-8 border-t border-black/5">
-             <button onClick={() => setIsLocked(true)} className="w-full py-4 text-[9px] font-black uppercase text-rose-500 bg-rose-50 dark:bg-rose-900/10 rounded-2xl">Lock Session</button>
-             <button onClick={() => setIsLanding(true)} className="w-full py-4 text-[9px] font-black uppercase text-slate-400 mt-2">Exit to Landing</button>
+             <button onClick={() => setIsLocked(true)} className="w-full py-4 text-[9px] font-black uppercase text-rose-500 bg-rose-50 dark:bg-rose-900/10 rounded-2xl active-scale">Lock Session</button>
+             <button onClick={() => setIsLanding(true)} className="w-full py-4 text-[9px] font-black uppercase text-slate-400 mt-2 hover:text-indigo-600 transition-colors">Exit to Landing</button>
           </div>
       </aside>
 
@@ -197,7 +258,10 @@ const App: React.FC = () => {
             <div className="h-10 w-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-xl"><Icons.Dashboard className="w-5 h-5 text-white" /></div>
             <h1 className="text-xl font-black tracking-tightest">TRACKR.</h1>
           </div>
-          <button onClick={() => setIsProfileOpen(true)} className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-black text-indigo-500 border-2 border-indigo-500/10">{currentUser?.name[0]}</button>
+          <div className="flex items-center gap-3">
+             <div className={`h-2 w-2 rounded-full ${settings.cloud.isConnected ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
+             <button onClick={() => setIsProfileOpen(true)} className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-black text-indigo-500 border-2 border-indigo-500/10">{currentUser?.name[0]}</button>
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto no-scrollbar px-6 md:px-12 py-8 pb-40">
@@ -211,8 +275,8 @@ const App: React.FC = () => {
             {activeTab === 'inventory' && <Inventory products={companyProducts} setProducts={setProducts} currencySymbol={currencySymbol} globalSettings={settings} onNewTags={(tags) => setSettings(prev => ({...prev, inventoryCategories: Array.from(new Set([...prev.inventoryCategories, ...tags]))}))} activeCompanyId={activeCompanyId} />}
             {activeTab === 'add' && <TransactionForm accounts={companyAccounts} products={companyProducts} entities={companyEntities} onAdd={addTransaction} settings={settings} categories={categories} />}
             {activeTab === 'reports' && <Reports transactions={companyTransactions} products={companyProducts} entities={companyEntities} accounts={companyAccounts} currencySymbol={currencySymbol} />}
-            {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} transactions={companyTransactions} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={(tag) => setSettings(p => ({...p, inventoryCategories: p.inventoryCategories.filter(t => t !== tag)}))} onFetchCloud={() => {}} />}
-            {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} onRegister={handleRegisterCompany} transactions={transactions} accounts={accounts} settings={settings} onUpdateConfig={() => {}} onConnect={() => {}} isOnline={isOnline} />}
+            {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} transactions={companyTransactions} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={(tag) => setSettings(p => ({...p, inventoryCategories: p.inventoryCategories.filter(t => t !== tag)}))} onFetchCloud={() => syncToCloud('PULL')} />}
+            {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} onRegister={handleRegisterCompany} transactions={transactions} accounts={accounts} settings={settings} onUpdateConfig={() => {}} onConnect={() => syncToCloud('PUSH')} isOnline={isOnline} />}
         </main>
       </div>
 
@@ -220,7 +284,15 @@ const App: React.FC = () => {
         <ProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onSave={(u) => setUsers(prev => prev.map(p => p.id === u.id ? u : p))} onLogout={() => { setIsProfileOpen(false); setIsLocked(true); }} />
       )}
 
-      {/* Mobile Bottom Bar */}
+      {/* Cloud Sync Overlay */}
+      {isSyncing && (
+        <div className="fixed top-6 right-6 z-[100] bg-indigo-600 text-white px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest shadow-2xl animate-in slide-in-from-right-10 flex items-center gap-2">
+           <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+           Syncing Ledger...
+        </div>
+      )}
+
+      {/* Mobile Navigation */}
       <div className="md:hidden absolute bottom-10 left-0 right-0 px-6 z-50 pointer-events-none">
         <nav className="glass rounded-[2.5rem] p-1.5 flex justify-between items-center premium-shadow pointer-events-auto overflow-x-auto no-scrollbar">
           {(isSuper ? ['admin', 'dashboard', 'ledger', 'add', 'inventory', 'reports', 'settings'] : ['dashboard', 'ledger', 'add', 'inventory', 'reports', 'settings']).map((id) => (

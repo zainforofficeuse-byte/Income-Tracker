@@ -13,10 +13,10 @@ interface SettingsProps {
   logoUrl: string | null;
   setLogoUrl: (url: string | null) => void;
   onRemoveInventoryTag: (tag: string) => void;
-  onFetchCloud?: (customUrl?: string) => void;
+  onFetchCloud: () => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ settings, updateSettings, accounts, setAccounts, categories, setCategories, onRemoveInventoryTag }) => {
+const Settings: React.FC<SettingsProps> = ({ settings, updateSettings, accounts, setAccounts, categories, setCategories, onRemoveInventoryTag, onFetchCloud }) => {
   const [isAddingAccount, setIsAddingAccount] = useState(false);
   const [newAcc, setNewAcc] = useState({ name: '', balance: 0 });
   const [newCat, setNewCat] = useState({ name: '', type: TransactionType.EXPENSE });
@@ -50,11 +50,32 @@ const Settings: React.FC<SettingsProps> = ({ settings, updateSettings, accounts,
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Enterprise Configuration</p>
          </div>
          <div className="flex gap-2">
-            <button onClick={() => updateSettings({ darkMode: !settings.darkMode })} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl">
+            <button onClick={() => updateSettings({ darkMode: !settings.darkMode })} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl active-scale">
                {settings.darkMode ? '☀️' : '🌙'}
             </button>
          </div>
       </div>
+
+      {/* Cloud Status Section */}
+      <section className="space-y-4 px-2">
+         <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl">
+            <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 blur-3xl rounded-full"></div>
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+               <div>
+                  <div className="flex items-center gap-2 mb-1">
+                     <div className={`h-1.5 w-1.5 rounded-full ${settings.cloud.isConnected ? 'bg-emerald-400' : 'bg-rose-400'} animate-pulse`}></div>
+                     <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-80">
+                        {settings.cloud.isConnected ? 'Google Cloud Linked' : 'Cloud Disconnected'}
+                     </p>
+                  </div>
+                  <h3 className="text-xl font-black">Sheets Real-time Sync</h3>
+               </div>
+               <button onClick={onFetchCloud} className="px-6 py-3 bg-white text-indigo-600 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl active-scale">
+                  Force Sync Now
+               </button>
+            </div>
+         </div>
+      </section>
 
       {/* Account Balances Section */}
       <section className="space-y-4 px-2">
@@ -64,7 +85,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, updateSettings, accounts,
         </div>
         {isAddingAccount && (
           <div className="bg-indigo-50 dark:bg-indigo-900/10 p-6 rounded-[2rem] space-y-3 animate-in zoom-in-95">
-             <input value={newAcc.name} onChange={e => setNewAcc({...newAcc, name: e.target.value})} placeholder="Account Name (e.g. HBL Bank)" className="w-full bg-white dark:bg-slate-800 rounded-xl px-4 py-3 text-xs font-bold border-none" />
+             <input value={newAcc.name} onChange={e => setNewAcc({...newAcc, name: e.target.value})} placeholder="Account Name (e.g. Bank Alfalah)" className="w-full bg-white dark:bg-slate-800 rounded-xl px-4 py-3 text-xs font-bold border-none" />
              <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-bold opacity-30">{settings.currency}</span>
                 <input type="number" value={newAcc.balance} onChange={e => setNewAcc({...newAcc, balance: parseFloat(e.target.value) || 0})} placeholder="Opening Balance" className="w-full bg-white dark:bg-slate-800 rounded-xl pl-10 pr-4 py-3 text-xs font-bold border-none" />
@@ -79,50 +100,6 @@ const Settings: React.FC<SettingsProps> = ({ settings, updateSettings, accounts,
                <span className="font-black text-xs text-indigo-500">{settings.currency} {acc.balance.toLocaleString()}</span>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* Finance Category Manager */}
-      <section className="space-y-4 px-2">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Finance Ledger Categories</p>
-        <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 premium-shadow space-y-6">
-           <div className="flex gap-2">
-              <input value={newCat.name} onChange={e => setNewCat({...newCat, name: e.target.value})} placeholder="Add Label..." className="flex-1 bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3 text-xs font-bold border-none" />
-              <select value={newCat.type} onChange={e => setNewCat({...newCat, type: e.target.value as TransactionType})} className="bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3 text-[10px] font-black uppercase border-none">
-                 <option value={TransactionType.INCOME}>Income</option>
-                 <option value={TransactionType.EXPENSE}>Expense</option>
-              </select>
-              <button onClick={addCategory} className="bg-indigo-600 text-white px-6 rounded-xl text-xl font-black active-scale">+</button>
-           </div>
-           <div className="grid grid-cols-2 gap-8">
-              <div>
-                 <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest mb-4">Incomes</p>
-                 <div className="space-y-2">{categories[TransactionType.INCOME].map(c => <div key={c} className="flex justify-between items-center group"><span className="text-[11px] font-bold">{c}</span><button onClick={() => setCategories({...categories, [TransactionType.INCOME]: categories[TransactionType.INCOME].filter(cat => cat !== c)})} className="text-rose-500 opacity-0 group-hover:opacity-100">×</button></div>)}</div>
-              </div>
-              <div>
-                 <p className="text-[8px] font-black text-rose-500 uppercase tracking-widest mb-4">Expenses</p>
-                 <div className="space-y-2">{categories[TransactionType.EXPENSE].map(c => <div key={c} className="flex justify-between items-center group"><span className="text-[11px] font-bold">{c}</span><button onClick={() => setCategories({...categories, [TransactionType.EXPENSE]: categories[TransactionType.EXPENSE].filter(cat => cat !== c)})} className="text-rose-500 opacity-0 group-hover:opacity-100">×</button></div>)}</div>
-              </div>
-           </div>
-        </div>
-      </section>
-
-      {/* Inventory Category Manager (Global Tags) */}
-      <section className="space-y-4 px-2">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Inventory Global Tags</p>
-        <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 premium-shadow space-y-6">
-           <div className="flex gap-2">
-              <input value={newInvTag} onChange={e => setNewInvTag(e.target.value)} placeholder="New Stock Tag (e.g. Shoes)..." className="flex-1 bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3 text-xs font-bold border-none" />
-              <button onClick={addInvTag} className="bg-indigo-600 text-white px-6 rounded-xl text-xl font-black active-scale">+</button>
-           </div>
-           <div className="flex flex-wrap gap-2">
-              {settings.inventoryCategories.map(tag => (
-                <div key={tag} className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 rounded-full border border-indigo-100 dark:border-indigo-800">
-                   <span className="text-[10px] font-black uppercase text-indigo-600">{tag}</span>
-                   <button onClick={() => onRemoveInventoryTag(tag)} className="text-rose-500 font-black">×</button>
-                </div>
-              ))}
-           </div>
         </div>
       </section>
 

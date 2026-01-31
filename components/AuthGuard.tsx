@@ -7,9 +7,10 @@ interface AuthGuardProps {
   users: User[];
   onUnlock: (userId: string) => void;
   onRegister: (name: string, adminName: string, adminEmail: string, adminPass: string) => string;
+  onBack: () => void;
 }
 
-const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onRegister }) => {
+const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onRegister, onBack }) => {
   const [view, setView] = useState<'LOGIN' | 'SIGNUP'>('LOGIN');
   const [formData, setFormData] = useState({ 
     company: '', 
@@ -54,7 +55,8 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onReg
     <div className="h-full w-full flex flex-col items-center justify-center p-8 bg-[#fcfcfd] dark:bg-[#030712] animate-in fade-in duration-500 overflow-y-auto">
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
-           <div className="h-16 w-16 rounded-2xl bg-indigo-600 mb-6 flex items-center justify-center text-white font-black text-2xl shadow-2xl mx-auto">T</div>
+           {/* Logo now navigates back to landing */}
+           <button onClick={onBack} className="h-16 w-16 rounded-2xl bg-indigo-600 mb-6 flex items-center justify-center text-white font-black text-2xl shadow-2xl mx-auto active-scale transition-transform">T</button>
            <h2 className="text-3xl font-black tracking-tightest uppercase">TRACKR<span className="text-indigo-600">.</span></h2>
            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 italic">Enterprise Gateway</p>
         </div>
@@ -88,7 +90,10 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onReg
                 />
              </div>
              <button type="submit" className="w-full py-5 mt-4 bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale shadow-xl shadow-indigo-500/20">Sign In</button>
-             <button type="button" onClick={() => setView('SIGNUP')} className="w-full text-[10px] font-black text-indigo-600 uppercase tracking-widest pt-4">Need a business account? Sign Up</button>
+             <div className="flex flex-col gap-2 mt-4">
+                <button type="button" onClick={() => setView('SIGNUP')} className="w-full text-[10px] font-black text-indigo-600 uppercase tracking-widest">Need a business account? Sign Up</button>
+                <button type="button" onClick={onBack} className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-60">Return to Home</button>
+             </div>
           </form>
         ) : (
           <form onSubmit={handleSignup} className="space-y-4 animate-in slide-in-from-bottom-4">
@@ -143,7 +148,10 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onReg
                 </div>
              </div>
              <button type="submit" className="w-full py-5 mt-4 bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale shadow-xl shadow-indigo-500/20">Create My ERP</button>
-             <button type="button" onClick={() => setView('LOGIN')} className="w-full text-[10px] font-black text-indigo-600 uppercase tracking-widest pt-4">Already registered? Login</button>
+             <div className="flex flex-col gap-2 mt-4 text-center">
+                <button type="button" onClick={() => setView('LOGIN')} className="w-full text-[10px] font-black text-indigo-600 uppercase tracking-widest">Already registered? Login</button>
+                <button type="button" onClick={onBack} className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-60">Back to Landing</button>
+             </div>
           </form>
         )}
       </div>
