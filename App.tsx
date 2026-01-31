@@ -15,8 +15,19 @@ import ProfileModal from './components/ProfileModal';
 import LandingPage from './components/LandingPage';
 import UserManagement from './components/UserManagement';
 
-const STORAGE_KEY = 'trackr_enterprise_v11';
+const STORAGE_KEY = 'trackr_enterprise_v12';
 const MASTER_CONFIG_URL = 'https://raw.githubusercontent.com/zainforofficeuse-byte/config-file-income-tracker/refs/heads/main/config.txt'; 
+
+// Utility: SHA-256 Hashing for Passwords
+const hashPassword = async (password: string) => {
+  if (!password) return '';
+  // If it already looks like a hash (64 chars), don't re-hash
+  if (password.length === 64) return password;
+  const msgUint8 = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
 
 const INITIAL_USERS: User[] = [
   { 
@@ -24,7 +35,7 @@ const INITIAL_USERS: User[] = [
     companyId: 'SYSTEM', 
     name: 'Super Admin', 
     email: 'super@trackr.com', 
-    password: 'admin123', 
+    password: 'ef797c8118f02dfb649607dd5d3f8c7623048c9c063d532cc95c5ed7a898a64f', // admin123
     pin: '1234', 
     role: UserRole.SUPER_ADMIN 
   }
@@ -84,13 +95,31 @@ const App: React.FC = () => {
   const companyEntities = useMemo(() => isSuper ? entities : entities.filter(e => e.companyId === activeCompanyId), [entities, activeCompanyId, isSuper]);
   const companyUsers = useMemo(() => isSuper ? users : users.filter(u => u.companyId === activeCompanyId), [users, activeCompanyId, isSuper]);
 
-  const syncToCloud = async (action: 'PUSH' | 'PULL' | 'TRIGGER_BACKUP') => {
-    if (!settings.cloud.scriptUrl || !isOnline) return;
+  const fetchMasterConfig = async () => {
+    try {
+      const response = await fetch(MASTER_CONFIG_URL);
+      const text = await response.text();
+      const scriptUrlMatch = text.match(/https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec/);
+      if (scriptUrlMatch) {
+        setSettings(prev => ({
+          ...prev,
+          cloud: { ...prev.cloud, scriptUrl: scriptUrlMatch[0], isConnected: true }
+        }));
+        return scriptUrlMatch[0];
+      }
+    } catch (err) { console.error("Config fetch error:", err); }
+    return null;
+  };
+
+  const syncToCloud = async (action: 'PUSH' | 'PULL' | 'TRIGGER_BACKUP' | 'REMOTE_LOGIN', payload?: any) => {
+    let url = settings.cloud.scriptUrl;
+    if (!url) url = await fetchMasterConfig() || '';
+    if (!url || !isOnline) return null;
     
     setIsSyncing(true);
     try {
       if (action === 'PUSH' && !isSuspended) {
-        await fetch(settings.cloud.scriptUrl, {
+        await fetch(url, {
           method: 'POST',
           mode: 'no-cors',
           headers: { 'Content-Type': 'application/json' },
@@ -101,11 +130,10 @@ const App: React.FC = () => {
           })
         });
       } else if (action === 'PULL') {
-        const response = await fetch(`${settings.cloud.scriptUrl}?action=SYNC_PULL&companyId=${activeCompanyId}`);
+        const response = await fetch(`${url}?action=SYNC_PULL&companyId=${activeCompanyId}`);
         const result = await response.json();
         if (result.status === 'success' && result.data) {
           const d = result.data;
-          // Clean only the current company's data before applying pull
           if (d.transactions) setTransactions(prev => [...prev.filter(t => t.companyId !== activeCompanyId), ...d.transactions]);
           if (d.accounts) setAccounts(prev => [...prev.filter(a => a.companyId !== activeCompanyId), ...d.accounts]);
           if (d.products) setProducts(prev => [...prev.filter(p => p.companyId !== activeCompanyId), ...d.products]);
@@ -116,17 +144,20 @@ const App: React.FC = () => {
           ]);
         }
       } else if (action === 'TRIGGER_BACKUP') {
-        await fetch(settings.cloud.scriptUrl, {
+        await fetch(url, {
           method: 'POST',
           mode: 'no-cors',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'TRIGGER_BACKUP' })
         });
-        alert('Data Safety Routine: Cloud Backup Successful.');
+      } else if (action === 'REMOTE_LOGIN') {
+        const response = await fetch(`${url}?action=FIND_USER&email=${payload.email}`);
+        const result = await response.json();
+        return result.status === 'success' ? result.user : null;
       }
       setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, isConnected: true } }));
     } catch (err) {
-      console.error("Cloud Sync Error:", err);
+      console.error("Cloud Error:", err);
       setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, isConnected: false } }));
     } finally {
       setTimeout(() => setIsSyncing(false), 800);
@@ -134,19 +165,6 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    const fetchMasterConfig = async () => {
-      try {
-        const response = await fetch(MASTER_CONFIG_URL);
-        const text = await response.text();
-        const scriptUrlMatch = text.match(/https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec/);
-        if (scriptUrlMatch) {
-          setSettings(prev => ({
-            ...prev,
-            cloud: { ...prev.cloud, scriptUrl: scriptUrlMatch[0], isConnected: true }
-          }));
-        }
-      } catch (err) { console.error("Config fetch error:", err); }
-    };
     fetchMasterConfig();
   }, []);
 
@@ -180,17 +198,6 @@ const App: React.FC = () => {
     else document.documentElement.classList.remove('dark');
   }, [companies, users, transactions, accounts, products, entities, categories, isInitialized, settings, isLanding, isLocked, isSuspended]);
 
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
   const addTransaction = (tx: any) => {
     if (!currentUser || isSuspended) return;
     const newTx = { ...tx, id: crypto.randomUUID(), companyId: activeCompanyId, createdBy: currentUser.id, syncStatus: 'PENDING', version: 1, updatedAt: new Date().toISOString() };
@@ -211,24 +218,57 @@ const App: React.FC = () => {
     setActiveTab('ledger');
   };
 
-  const handleRegisterCompany = (name: string, adminName: string, adminEmail: string, adminPass: string) => {
+  const handleRegisterCompany = async (name: string, adminName: string, adminEmail: string, adminPass: string) => {
     const compId = crypto.randomUUID();
     const userId = crypto.randomUUID();
     const accId = crypto.randomUUID();
+    const hashedPass = await hashPassword(adminPass);
     setCompanies(prev => [...prev, { id: compId, name, registrationDate: new Date().toISOString(), status: 'ACTIVE' }]);
-    setUsers(prev => [...prev, { id: userId, companyId: compId, name: adminName, email: adminEmail, password: adminPass, pin: adminPass, role: UserRole.ADMIN }]);
+    setUsers(prev => [...prev, { id: userId, companyId: compId, name: adminName, email: adminEmail, password: hashedPass, pin: adminPass, role: UserRole.ADMIN }]);
     setAccounts(prev => [...prev, { id: accId, companyId: compId, name: 'General Liquidity', balance: 0, color: '#10b981', type: 'CASH' }]);
     return userId;
   };
 
-  const handleUpdateCompany = (compId: string, updates: Partial<Company>, adminUpdates: Partial<User>) => {
+  const handleUpdateCompany = async (compId: string, updates: Partial<Company>, adminUpdates: Partial<User>) => {
     setCompanies(prev => prev.map(c => c.id === compId ? { ...c, ...updates } : c));
+    let hashedPass = undefined;
+    if (adminUpdates.pin) hashedPass = await hashPassword(adminUpdates.pin);
+
     setUsers(prev => prev.map(u => {
        if (u.companyId === compId && u.role === UserRole.ADMIN) {
-         return { ...u, ...adminUpdates, password: adminUpdates.pin || u.password };
+         return { ...u, ...adminUpdates, password: hashedPass || u.password };
        }
        return u;
     }));
+  };
+
+  const handleRemoteLogin = async (email: string, password: string) => {
+    const remoteUser = await syncToCloud('REMOTE_LOGIN', { email });
+    if (!remoteUser) return null;
+
+    const inputHash = await hashPassword(password);
+    if (remoteUser.password === inputHash) {
+      setUsers(prev => {
+         const exists = prev.find(u => u.id === remoteUser.id);
+         if (exists) return prev;
+         return [...prev, remoteUser];
+      });
+      // Important: Change active company before pull
+      setCurrentUserId(remoteUser.id);
+      setIsLocked(false);
+      // Logic for pull happens after state is set, but we can trigger it here manually too
+      const response = await fetch(`${settings.cloud.scriptUrl}?action=SYNC_PULL&companyId=${remoteUser.companyId}`);
+      const result = await response.json();
+      if (result.status === 'success' && result.data) {
+        const d = result.data;
+        if (d.transactions) setTransactions(prev => [...prev.filter(t => t.companyId !== remoteUser.companyId), ...d.transactions]);
+        if (d.accounts) setAccounts(prev => [...prev.filter(a => a.companyId !== remoteUser.companyId), ...d.accounts]);
+        if (d.products) setProducts(prev => [...prev.filter(p => p.companyId !== remoteUser.companyId), ...d.products]);
+        if (d.entities) setEntities(prev => [...prev.filter(e => e.companyId !== remoteUser.companyId), ...d.entities]);
+      }
+      return remoteUser.id;
+    }
+    return null;
   };
 
   const currencySymbol = useMemo(() => CURRENCIES.find(c => c.code === settings.currency)?.symbol || 'Rs.', [settings.currency]);
@@ -241,25 +281,17 @@ const App: React.FC = () => {
       users={users} 
       onUnlock={(userId) => { setCurrentUserId(userId); setIsLocked(false); }} 
       onRegister={handleRegisterCompany} 
+      onRemoteLogin={handleRemoteLogin}
       onBack={() => setIsLanding(true)} 
     />
   );
 
-  const connectionStatus = !isOnline ? 'OFFLINE' : (settings.cloud.isConnected ? 'CONNECTED' : 'NOT LINKED');
-  const connectionColor = !isOnline ? 'bg-rose-500' : (settings.cloud.isConnected ? 'bg-emerald-500' : 'bg-amber-500');
-
   return (
     <div className="h-screen w-full text-slate-900 dark:text-white max-w-6xl mx-auto relative overflow-hidden flex flex-col md:flex-row bg-white dark:bg-[#030712]">
-      {/* Sidebar */}
+      {/* Sidebar (Rest of UI) */}
       <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-black border-r border-emerald-500/5 p-8 z-50">
           <div className="mb-10 flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-black tracking-tightest">TRACKR<span className="text-emerald-500">.</span></h1>
-              <div className={`h-2 w-2 rounded-full ${connectionColor}`} title={connectionStatus}></div>
-            </div>
-            <div className="px-3 py-1 bg-emerald-50 dark:bg-emerald-900/20 rounded-full inline-block self-start">
-               <p className="text-[7px] font-black uppercase tracking-widest text-emerald-600">{connectionStatus}</p>
-            </div>
+            <h1 className="text-2xl font-black tracking-tightest">TRACKR<span className="text-emerald-500">.</span></h1>
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">{currentUser?.name}</p>
           </div>
           <nav className="flex-1 space-y-2 overflow-y-auto no-scrollbar">
@@ -277,24 +309,6 @@ const App: React.FC = () => {
       </aside>
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
-        <header className="px-8 pt-10 pb-4 flex justify-between items-center z-40 md:hidden">
-          <div className="flex items-center gap-4">
-            <div className="h-10 w-10 rounded-xl bg-emerald-600 flex items-center justify-center shadow-xl"><Icons.Dashboard className="w-5 h-5 text-white" /></div>
-            <h1 className="text-xl font-black tracking-tightest">TRACKR<span className="text-emerald-500">.</span></h1>
-          </div>
-          <div className="flex items-center gap-3">
-             <div className={`h-2 w-2 rounded-full ${connectionColor}`}></div>
-             <button onClick={() => setIsProfileOpen(true)} className="h-10 w-10 rounded-full bg-emerald-50 dark:bg-slate-800 flex items-center justify-center font-black text-emerald-600 border-2 border-emerald-500/10">{currentUser?.name[0]}</button>
-          </div>
-        </header>
-
-        {isSuspended && !isSuper && (
-            <div className="mx-8 mt-4 bg-rose-500/10 border border-rose-500/20 p-4 rounded-2xl flex items-center justify-between">
-                <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Subscription Suspended • Restricted to Read-Only Mode</p>
-                <Icons.Admin className="w-4 h-4 text-rose-500" />
-            </div>
-        )}
-
         <main className="flex-1 overflow-y-auto no-scrollbar px-6 md:px-12 py-8 pb-40">
             {activeTab === 'dashboard' && <Dashboard transactions={companyTransactions} accounts={companyAccounts} products={companyProducts} currencySymbol={currencySymbol} />}
             {activeTab === 'ledger' && (
@@ -319,19 +333,9 @@ const App: React.FC = () => {
       {isSyncing && (
         <div className="fixed top-6 right-6 z-[100] bg-emerald-600 text-white px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest shadow-2xl animate-in slide-in-from-right-10 flex items-center gap-2">
            <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
-           Processing...
+           Syncing Cloud...
         </div>
       )}
-
-      <div className="md:hidden absolute bottom-10 left-0 right-0 px-6 z-50 pointer-events-none">
-        <nav className="glass rounded-[2.5rem] p-1.5 flex justify-between items-center premium-shadow pointer-events-auto overflow-x-auto no-scrollbar">
-          {(isSuper ? ['admin', 'dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings'] : ['dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings']).map((id) => (
-            <button key={id} onClick={() => setActiveTab(id as Tab)} className={`flex-1 min-w-[50px] flex flex-col items-center gap-1 p-3 rounded-3xl transition-all ${activeTab === id ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400'}`}>
-              {React.createElement((Icons as any)[id.charAt(0).toUpperCase() + id.slice(1)] || Icons.Dashboard, { className: 'w-4 h-4' })}
-            </button>
-          ))}
-        </nav>
-      </div>
     </div>
   );
 };
