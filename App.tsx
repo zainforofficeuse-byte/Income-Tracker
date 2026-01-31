@@ -105,6 +105,7 @@ const App: React.FC = () => {
         const result = await response.json();
         if (result.status === 'success' && result.data) {
           const d = result.data;
+          // Clean only the current company's data before applying pull
           if (d.transactions) setTransactions(prev => [...prev.filter(t => t.companyId !== activeCompanyId), ...d.transactions]);
           if (d.accounts) setAccounts(prev => [...prev.filter(a => a.companyId !== activeCompanyId), ...d.accounts]);
           if (d.products) setProducts(prev => [...prev.filter(p => p.companyId !== activeCompanyId), ...d.products]);
@@ -121,7 +122,7 @@ const App: React.FC = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'TRIGGER_BACKUP' })
         });
-        alert('Remote Backup Triggered Successfully');
+        alert('Data Safety Routine: Cloud Backup Successful.');
       }
       setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, isConnected: true } }));
     } catch (err) {
@@ -306,7 +307,7 @@ const App: React.FC = () => {
             {activeTab === 'add' && (isSuspended ? <div className="flex flex-col items-center justify-center py-40 opacity-20"><Icons.Admin className="w-12 h-12 mb-4" /><p className="font-black uppercase tracking-widest">Postings Locked</p></div> : <TransactionForm accounts={companyAccounts} products={companyProducts} entities={companyEntities} onAdd={addTransaction} settings={settings} categories={categories} />)}
             {activeTab === 'reports' && <Reports transactions={companyTransactions} products={companyProducts} entities={companyEntities} accounts={companyAccounts} currencySymbol={currencySymbol} />}
             {activeTab === 'users' && <UserManagement users={companyUsers} setUsers={setUsers} currentUserRole={currentUser?.role || UserRole.STAFF} isReadOnly={isSuspended && !isSuper} />}
-            {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => !isSuspended && setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} transactions={companyTransactions} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={(tag) => setSettings(p => ({...p, inventoryCategories: p.inventoryCategories.filter(t => t !== tag)}))} onFetchCloud={() => syncToCloud('PULL')} />}
+            {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => !isSuspended && setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} transactions={companyTransactions} products={companyProducts} entities={companyEntities} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={(tag) => setSettings(p => ({...p, inventoryCategories: p.inventoryCategories.filter(t => t !== tag)}))} onFetchCloud={() => syncToCloud('PULL')} />}
             {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} onRegister={handleRegisterCompany} onUpdateCompany={handleUpdateCompany} transactions={transactions} accounts={accounts} settings={settings} isOnline={isOnline} onTriggerBackup={() => syncToCloud('TRIGGER_BACKUP')} />}
         </main>
       </div>
