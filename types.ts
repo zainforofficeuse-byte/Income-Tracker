@@ -93,6 +93,7 @@ export interface Transaction {
   quantity?: number; 
   paymentStatus: 'PAID' | 'CREDIT';
   createdBy: string; 
+  syncStatus: 'SYNCED' | 'PENDING';
 }
 
 export interface Account {

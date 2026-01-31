@@ -113,9 +113,12 @@ const Ledger: React.FC<LedgerProps> = ({ transactions, accounts, currencySymbol,
                       <span className="text-[11px] font-black text-slate-400 leading-tight">
                         {new Date(tx.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                       </span>
-                      <span className="text-[11px] font-black text-slate-400 leading-tight">
-                        {new Date(tx.date).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })}
-                      </span>
+                      <div className="flex items-center gap-1 mt-0.5">
+                         <div className={`w-1 h-1 rounded-full ${tx.syncStatus === 'SYNCED' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                         <span className="text-[8px] font-black text-slate-300 uppercase tracking-tighter">
+                           {tx.syncStatus === 'SYNCED' ? 'Cloud' : 'Local'}
+                         </span>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-3 overflow-hidden">
@@ -202,12 +205,12 @@ const Ledger: React.FC<LedgerProps> = ({ transactions, accounts, currencySymbol,
                                 <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Account Source</p>
                                 <p className="text-xs font-bold">{getAccountName(tx.accountId)}</p>
                               </div>
-                              {tx.type === TransactionType.TRANSFER && (
-                                <div className="space-y-1">
-                                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Target Account</p>
-                                  <p className="text-xs font-bold">{getAccountName(tx.toAccountId || '')}</p>
-                                </div>
-                              )}
+                              <div className="space-y-1">
+                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Sync Status</p>
+                                <p className={`text-xs font-bold ${tx.syncStatus === 'SYNCED' ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                  {tx.syncStatus === 'SYNCED' ? 'Data Pushed to Cloud' : 'Waiting for Internet...'}
+                                </p>
+                              </div>
                             </div>
                             <div className="space-y-1">
                               <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Transaction Memo</p>
@@ -245,14 +248,6 @@ const Ledger: React.FC<LedgerProps> = ({ transactions, accounts, currencySymbol,
             </div>
           )}
         </div>
-      </div>
-      
-      <div className="flex items-center gap-2 px-2 opacity-30">
-        <div className="h-1 w-2 bg-slate-400 rounded-full"></div>
-        <div className="h-1 flex-1 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-          <div className="h-full w-1/3 bg-slate-400 rounded-full"></div>
-        </div>
-        <div className="h-1 w-2 bg-slate-400 rounded-full"></div>
       </div>
     </div>
   );

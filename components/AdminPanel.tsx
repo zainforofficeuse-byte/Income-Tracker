@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Transaction, Account, UserSettings, Company, User, UserRole } from '../types';
 
 interface AdminPanelProps {
@@ -11,13 +11,20 @@ interface AdminPanelProps {
   settings: UserSettings;
   onUpdateConfig: (config: any) => void;
   onConnect: () => void;
+  isOnline: boolean;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, transactions, accounts }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, transactions, isOnline }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newAdminName, setNewAdminName] = useState('');
   const [newAdminPin, setNewAdminPin] = useState('');
+
+  const syncStats = useMemo(() => {
+    const pending = transactions.filter(t => t.syncStatus === 'PENDING').length;
+    const synced = transactions.filter(t => t.syncStatus === 'SYNCED').length;
+    return { pending, synced };
+  }, [transactions]);
 
   const handleRegister = () => {
     if (!newCompanyName || !newAdminName || newAdminPin.length !== 4) return;
@@ -36,13 +43,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, t
       </div>
 
       <section className="grid grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow flex flex-col items-center border border-black/[0.02]">
-           <p className="text-[8px] font-black text-slate-400 uppercase mb-2">Total Companies</p>
-           <p className="text-xl font-black text-emerald-500">{companies.length}</p>
+        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow flex flex-col items-center border border-black/[0.02] dark:border-white/5">
+           <p className="text-[8px] font-black text-slate-400 uppercase mb-2 text-center">Cloud Health</p>
+           <div className="flex items-center gap-2">
+              <div className={`h-2 w-2 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500'}`} />
+              <p className={`text-sm font-black uppercase ${isOnline ? 'text-emerald-500' : 'text-rose-500'}`}>{isOnline ? 'Online' : 'Offline'}</p>
+           </div>
         </div>
-        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow flex flex-col items-center border border-black/[0.02]">
-           <p className="text-[8px] font-black text-slate-400 uppercase mb-2">Global Transacts</p>
-           <p className="text-xl font-black text-indigo-500">{transactions.length}</p>
+        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow flex flex-col items-center border border-black/[0.02] dark:border-white/5">
+           <p className="text-[8px] font-black text-slate-400 uppercase mb-2 text-center">Sync Queue</p>
+           <p className={`text-sm font-black ${syncStats.pending > 0 ? 'text-amber-500' : 'text-indigo-500'}`}>
+             {syncStats.pending} Pending
+           </p>
         </div>
       </section>
 
@@ -76,7 +88,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, t
 
         <div className="space-y-4">
           {companies.map(company => (
-            <div key={company.id} className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 premium-shadow border border-black/[0.02] flex items-center justify-between">
+            <div key={company.id} className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 premium-shadow border border-black/[0.02] dark:border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-4">
                  <div className="h-14 w-14 rounded-2xl bg-indigo-50 dark:bg-slate-800 flex items-center justify-center text-indigo-500 font-black text-xl">
                    {company.name[0]}
@@ -89,7 +101,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, t
                  </div>
               </div>
               <div className="text-right">
-                 <span className="text-[8px] font-black bg-emerald-100 text-emerald-600 px-2 py-1 rounded-full uppercase tracking-widest">Active</span>
+                 <span className="text-[8px] font-black bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 px-2 py-1 rounded-full uppercase tracking-widest">Active</span>
               </div>
             </div>
           ))}

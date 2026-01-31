@@ -38,6 +38,10 @@ const App: React.FC = () => {
   const [isLocked, setIsLocked] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  
+  // SYNC ENGINE STATE
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const currentUser = useMemo(() => users.find(u => u.id === currentUserId) || null, [users, currentUserId]);
   
@@ -73,6 +77,33 @@ const App: React.FC = () => {
       customAdjustments: []
     }
   });
+
+  // CONNECTIVITY LISTENERS
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // AUTO-SYNC LOGIC
+  useEffect(() => {
+    if (isOnline) {
+      const pendingTx = transactions.filter(t => t.syncStatus === 'PENDING');
+      if (pendingTx.length > 0) {
+        setIsSyncing(true);
+        const timer = setTimeout(() => {
+          setTransactions(prev => prev.map(t => ({...t, syncStatus: 'SYNCED'})));
+          setIsSyncing(false);
+        }, 3000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isOnline, transactions.length]);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -122,7 +153,13 @@ const App: React.FC = () => {
   const addTransaction = (tx: any) => {
     if (!currentUser) return;
     const companyIdToUse = isSuper ? activeCompanyId : currentUser.companyId;
-    const newTx = { ...tx, id: crypto.randomUUID(), companyId: companyIdToUse, createdBy: currentUser.id };
+    const newTx = { 
+      ...tx, 
+      id: crypto.randomUUID(), 
+      companyId: companyIdToUse, 
+      createdBy: currentUser.id,
+      syncStatus: isOnline ? 'SYNCED' : 'PENDING'
+    };
     
     setTransactions(prev => [newTx, ...prev]);
     if (tx.paymentStatus === 'PAID') {
@@ -165,9 +202,17 @@ const App: React.FC = () => {
              <Icons.Dashboard className="w-5 h-5 text-white" />
           </button>
           <div className="flex flex-col">
-            <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest truncate max-w-[120px]">
-              {isSuper ? `System Mode (${companies.find(c => c.id === activeCompanyId)?.name || 'Global'})` : companies.find(c => c.id === currentUser?.companyId)?.name}
-            </p>
+            <div className="flex items-center gap-1.5">
+               <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest truncate max-w-[80px]">
+                 {isSuper ? 'System' : companies.find(c => c.id === currentUser?.companyId)?.name}
+               </p>
+               <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full ${isOnline ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-amber-50 dark:bg-amber-900/20'}`}>
+                 <div className={`w-1 h-1 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'bg-amber-500'} ${isSyncing ? 'animate-pulse' : ''}`} />
+                 <span className={`text-[6px] font-black uppercase ${isOnline ? 'text-emerald-500' : 'text-amber-500'}`}>
+                   {isSyncing ? 'Syncing...' : (isOnline ? 'Live' : 'Local')}
+                 </span>
+               </div>
+            </div>
             <h1 className="text-xl font-black tracking-tightest">TRACKR<span className="text-slate-400">.</span></h1>
           </div>
         </div>
@@ -212,7 +257,7 @@ const App: React.FC = () => {
             />
           )}
           {activeTab === 'add' && <TransactionForm accounts={companyAccounts} products={companyProducts} entities={companyEntities} onAdd={addTransaction} settings={settings} categories={DEFAULT_CATEGORIES} />}
-          {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} onRegister={handleRegisterCompany} transactions={transactions} accounts={accounts} settings={settings} onUpdateConfig={() => {}} onConnect={() => {}} />}
+          {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} onRegister={handleRegisterCompany} transactions={transactions} accounts={accounts} settings={settings} onUpdateConfig={() => {}} onConnect={() => {}} isOnline={isOnline} />}
           {activeTab === 'users' && !isSuper && <UserManagement users={companyUsers} setUsers={setUsers} currentUserRole={currentUser!.role} />}
           {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={DEFAULT_CATEGORIES} setCategories={() => {}} transactions={companyTransactions} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={() => {}} />}
       </main>
