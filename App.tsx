@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Tab, Transaction, Account, UserSettings, TransactionType, CURRENCIES, Entity, DEFAULT_CATEGORIES, DEFAULT_PRODUCT_CATEGORIES, Product, User, UserRole, Company, DbCloudConfig } from './types';
+import { Tab, Transaction, Account, UserSettings, TransactionType, CURRENCIES, Entity, DEFAULT_CATEGORIES, DEFAULT_PRODUCT_CATEGORIES, Product, User, UserRole, Company } from './types';
 import { Icons } from './constants';
 import Dashboard from './components/Dashboard';
 import Ledger from './components/Ledger';
@@ -77,6 +77,50 @@ const App: React.FC = () => {
   const companyProducts = useMemo(() => products.filter(p => p.companyId === activeCompanyId), [products, activeCompanyId]);
   const companyEntities = useMemo(() => entities.filter(e => e.companyId === activeCompanyId), [entities, activeCompanyId]);
 
+  // 1. Fetch Master Config from GitHub
+  useEffect(() => {
+    const fetchMasterConfig = async () => {
+      try {
+        const response = await fetch(MASTER_CONFIG_URL);
+        const text = await response.text();
+        const scriptUrlMatch = text.match(/https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec/);
+        if (scriptUrlMatch) {
+          setSettings(prev => ({
+            ...prev,
+            cloud: { ...prev.cloud, scriptUrl: scriptUrlMatch[0], isConnected: true }
+          }));
+          console.log("Remote Script URL Linked:", scriptUrlMatch[0]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch master config:", err);
+      }
+    };
+    fetchMasterConfig();
+  }, []);
+
+  // 2. Sync to Cloud Logic
+  const syncToCloud = async (action: 'PUSH' | 'PULL') => {
+    if (!settings.cloud.scriptUrl || !isOnline) return;
+    setIsSyncing(true);
+    try {
+      if (action === 'PUSH') {
+        await fetch(settings.cloud.scriptUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'SYNC_ALL',
+            data: { transactions, accounts, products, entities }
+          })
+        });
+      }
+    } catch (err) {
+      console.error("Cloud Sync Failed:", err);
+    } finally {
+      setTimeout(() => setIsSyncing(false), 1500);
+    }
+  };
+
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -104,7 +148,7 @@ const App: React.FC = () => {
             ...prev,
             ...p.settings,
             pricingRules: { ...prev.pricingRules, ...(p.settings.pricingRules || {}) },
-            cloud: { ...prev.cloud, ...(p.settings.cloud || {}) }
+            cloud: { ...prev.cloud, ...(p.settings.cloud || prev.cloud) }
           }));
         }
       }
@@ -116,6 +160,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (isInitialized) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ companies, users, transactions, accounts, products, entities, settings }));
+      if (settings.cloud.autoSync) syncToCloud('PUSH');
     }
     if (settings.darkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
@@ -123,7 +168,15 @@ const App: React.FC = () => {
 
   const addTransaction = (tx: any) => {
     if (!currentUser) return;
-    const newTx = { ...tx, id: crypto.randomUUID(), companyId: activeCompanyId, createdBy: currentUser.id, syncStatus: 'PENDING', version: 1, updatedAt: new Date().toISOString() };
+    const newTx = { 
+      ...tx, 
+      id: crypto.randomUUID(), 
+      companyId: activeCompanyId, 
+      createdBy: currentUser.id, 
+      syncStatus: 'PENDING', 
+      version: 1, 
+      updatedAt: new Date().toISOString() 
+    };
     
     setTransactions(prev => [newTx, ...prev]);
 
@@ -156,11 +209,9 @@ const App: React.FC = () => {
 
   const connectionStatus = useMemo(() => {
     if (!isOnline) return { label: 'Offline', color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', bullet: 'bg-amber-500' };
-    if (settings.cloud.scriptUrl) return { label: 'Linked', color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', bullet: 'bg-emerald-500' };
+    if (settings.cloud.scriptUrl) return { label: 'Sync Active', color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', bullet: 'bg-emerald-500' };
     return { label: 'Local Only', color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-900/20', bullet: 'bg-indigo-500' };
   }, [isOnline, settings.cloud.scriptUrl]);
-
-  const restoreEverything = async () => { };
 
   if (!isInitialized) return null;
   if (isLocked) return <AuthGuard companies={companies} users={users} onUnlock={(userId) => { setCurrentUserId(userId); setIsLocked(false); }} />;
@@ -200,7 +251,7 @@ const App: React.FC = () => {
              <div className="space-y-6">
                <Ledger transactions={companyTransactions} accounts={companyAccounts} currencySymbol={currencySymbol} categories={DEFAULT_CATEGORIES} onDelete={(id) => setTransactions(prev => prev.filter(t => t.id !== id))} onUpdate={(tx) => setTransactions(prev => prev.map(t => t.id === tx.id ? tx : t))} />
                <div className="mt-8 border-t border-slate-100 dark:border-white/5 pt-8">
-                  <Parties entities={companyEntities} setEntities={setEntities} currencySymbol={currencySymbol} transactions={companyTransactions} />
+                  <Parties entities={companyEntities} setEntities={setEntities} currencySymbol={currencySymbol} transactions={companyTransactions} activeCompanyId={activeCompanyId} />
                </div>
              </div>
           )}
@@ -209,7 +260,7 @@ const App: React.FC = () => {
           {activeTab === 'reports' && <Reports transactions={companyTransactions} products={companyProducts} entities={companyEntities} accounts={companyAccounts} currencySymbol={currencySymbol} />}
           {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} onRegister={handleRegisterCompany} transactions={transactions} accounts={accounts} settings={settings} onUpdateConfig={() => {}} onConnect={() => {}} isOnline={isOnline} />}
           {activeTab === 'users' && !isSuper && <UserManagement users={users} setUsers={setUsers} currentUserRole={currentUser!.role} />}
-          {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={DEFAULT_CATEGORIES} setCategories={() => {}} transactions={companyTransactions} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={() => {}} onFetchCloud={restoreEverything} />}
+          {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={DEFAULT_CATEGORIES} setCategories={() => {}} transactions={companyTransactions} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={() => {}} onFetchCloud={() => syncToCloud('PULL')} />}
       </main>
 
       {isProfileOpen && currentUser && (

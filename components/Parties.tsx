@@ -8,22 +8,36 @@ interface PartiesProps {
   setEntities: React.Dispatch<React.SetStateAction<Entity[]>>;
   currencySymbol: string;
   transactions: Transaction[];
+  activeCompanyId: string;
 }
 
-const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol, transactions }) => {
+const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol, transactions, activeCompanyId }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [newEnt, setNewEnt] = useState<Partial<Entity>>({ name: '', type: 'CLIENT', balance: 0 });
   const [filterType, setFilterType] = useState<'CLIENT' | 'VENDOR'>('CLIENT');
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
 
   const addEntity = () => {
     if (!newEnt.name) return;
-    setEntities(prev => [...prev, { ...newEnt, id: crypto.randomUUID(), balance: 0 } as Entity]);
+    // FIXED: Added activeCompanyId to ensure new entities are associated with the correct company
+    const finalEntity: Entity = {
+      ...newEnt,
+      id: crypto.randomUUID(),
+      companyId: activeCompanyId,
+      balance: newEnt.balance || 0,
+      type: filterType
+    } as Entity;
+    
+    setEntities(prev => [...prev, finalEntity]);
     setNewEnt({ name: '', type: filterType, balance: 0 });
     setIsAdding(false);
   };
 
   const totalReceivable = useMemo(() => entities.filter(e => e.type === 'CLIENT').reduce((sum, e) => sum + e.balance, 0), [entities]);
   const totalPayable = useMemo(() => entities.filter(e => e.type === 'VENDOR').reduce((sum, e) => sum + Math.abs(e.balance), 0), [entities]);
+
+  const selectedEntity = useMemo(() => entities.find(e => e.id === selectedEntityId), [entities, selectedEntityId]);
+  const entityTransactions = useMemo(() => transactions.filter(t => t.entityId === selectedEntityId), [transactions, selectedEntityId]);
 
   return (
     <div className="space-y-8 animate-slide-up">
@@ -73,7 +87,11 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
 
       <div className="space-y-3">
         {entities.filter(e => e.type === filterType).map(ent => (
-          <div key={ent.id} className="bg-white dark:bg-slate-900 rounded-[2rem] p-5 premium-shadow border border-black/[0.02] flex items-center justify-between group">
+          <button 
+            key={ent.id} 
+            onClick={() => setSelectedEntityId(ent.id)}
+            className="w-full bg-white dark:bg-slate-900 rounded-[2rem] p-5 premium-shadow border border-black/[0.02] flex items-center justify-between group active-scale text-left"
+          >
             <div className="flex items-center gap-4">
                <div className="h-12 w-12 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-indigo-500 font-black text-lg uppercase">{ent.name[0]}</div>
                <div>
@@ -89,9 +107,64 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
                 {ent.balance > 0 ? 'Receivable' : ent.balance < 0 ? 'Payable' : 'Clear'}
               </p>
             </div>
-          </div>
+          </button>
         ))}
+        {entities.filter(e => e.type === filterType).length === 0 && (
+          <div className="py-20 text-center opacity-20">
+             <p className="text-[10px] font-black uppercase tracking-widest">No Parties Found</p>
+          </div>
+        )}
       </div>
+
+      {/* Entity Detailed Statement Modal */}
+      {selectedEntityId && selectedEntity && (
+        <div className="fixed inset-0 z-[100] flex flex-col p-6 animate-in fade-in duration-300">
+           <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-xl" onClick={() => setSelectedEntityId(null)} />
+           <div className="relative flex-1 bg-white dark:bg-slate-900 rounded-[3rem] p-8 premium-shadow border border-white/20 overflow-hidden flex flex-col animate-in slide-in-from-bottom-10">
+              <div className="flex justify-between items-start mb-8">
+                 <div>
+                    <h3 className="text-2xl font-black tracking-tightest">{selectedEntity.name}</h3>
+                    <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">{selectedEntity.type} STATEMENT</p>
+                 </div>
+                 <button onClick={() => setSelectedEntityId(null)} className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-black">×</button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-8">
+                 <div className="bg-slate-50 dark:bg-slate-800 p-5 rounded-[2rem]">
+                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Current Balance</p>
+                    <p className={`text-xl font-black ${selectedEntity.balance > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                       {currencySymbol}{Math.abs(selectedEntity.balance).toLocaleString()}
+                    </p>
+                 </div>
+                 <div className="bg-slate-50 dark:bg-slate-800 p-5 rounded-[2rem]">
+                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Total Txns</p>
+                    <p className="text-xl font-black">{entityTransactions.length}</p>
+                 </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto no-scrollbar space-y-3">
+                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Recent Transactions</p>
+                 {entityTransactions.length > 0 ? entityTransactions.map(tx => (
+                   <div key={tx.id} className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl flex items-center justify-between">
+                      <div>
+                        <p className="text-[11px] font-black uppercase">{tx.category}</p>
+                        <p className="text-[8px] font-bold text-slate-400">{new Date(tx.date).toLocaleDateString()}</p>
+                      </div>
+                      <p className={`font-black text-sm ${tx.type === TransactionType.INCOME ? 'text-emerald-500' : 'text-rose-500'}`}>
+                         {tx.type === TransactionType.INCOME ? '+' : '-'}{currencySymbol}{tx.amount.toLocaleString()}
+                      </p>
+                   </div>
+                 )) : (
+                   <div className="py-20 text-center opacity-20">
+                      <p className="text-[10px] font-black uppercase tracking-widest">No transaction history</p>
+                   </div>
+                 )}
+              </div>
+
+              <button onClick={() => setSelectedEntityId(null)} className="w-full py-4 mt-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest">Close Statement</button>
+           </div>
+        </div>
+      )}
     </div>
   );
 };
