@@ -60,7 +60,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
       date: new Date(date).toISOString(),
     });
 
-    // Reset Form
     setAmount('');
     setNote('');
     setProductId('');
@@ -87,71 +86,71 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
         </div>
 
         <div className="space-y-4">
-          <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1 rounded-full">
-            <button type="button" onClick={() => setType(TransactionType.EXPENSE)} className={`flex-1 py-3 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${type === TransactionType.EXPENSE ? 'bg-white dark:bg-slate-800 text-rose-500' : 'text-slate-400'}`}>Payment Out</button>
-            <button type="button" onClick={() => setType(TransactionType.INCOME)} className={`flex-1 py-3 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${type === TransactionType.INCOME ? 'bg-white dark:bg-slate-800 text-emerald-500' : 'text-slate-400'}`}>Payment In</button>
+          {/* Swapped: Payment Out Left, Payment In Right */}
+          <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-[2rem] border border-black/5">
+            <button type="button" onClick={() => setType(TransactionType.EXPENSE)} className={`flex-1 py-3.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${type === TransactionType.EXPENSE ? 'bg-rose-500 text-white shadow-lg' : 'text-slate-400'}`}>Payment Out</button>
+            <button type="button" onClick={() => setType(TransactionType.INCOME)} className={`flex-1 py-3.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${type === TransactionType.INCOME ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-400'}`}>Payment In</button>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-5 premium-shadow border border-black/[0.03] space-y-4">
+          <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow border border-black/[0.03] space-y-5">
             <div className="flex gap-2">
-               <button type="button" onClick={() => setPaymentStatus('PAID')} className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border-2 transition-all ${paymentStatus === 'PAID' ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}>Cash/Paid</button>
-               <button type="button" onClick={() => setPaymentStatus('CREDIT')} className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border-2 transition-all ${paymentStatus === 'CREDIT' ? 'bg-rose-500 border-rose-500 text-white' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}>Udhaar/Credit</button>
+               <button type="button" onClick={() => setPaymentStatus('PAID')} className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${paymentStatus === 'PAID' ? 'bg-slate-900 border-slate-900 text-white' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}>Cash/Bank</button>
+               <button type="button" onClick={() => setPaymentStatus('CREDIT')} className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${paymentStatus === 'CREDIT' ? 'bg-rose-50 text-rose-500 border-rose-100' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}>Udhaar/Credit</button>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Entry Date</label>
-                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 font-black text-[10px] border-none" />
+              <div className="space-y-1.5 p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl">
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Entry Date</label>
+                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-transparent font-black text-xs border-none p-0 focus:ring-0" />
               </div>
-              <div className="space-y-1">
-                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Category</label>
-                <select value={category} onChange={e => setCategory(e.target.value)} disabled={isInventoryMode} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 font-black text-[10px] border-none">
+              <div className="space-y-1.5 p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl">
+                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Category</label>
+                <select value={category} onChange={e => setCategory(e.target.value)} disabled={isInventoryMode} className="w-full bg-transparent font-black text-xs border-none p-0 focus:ring-0 uppercase truncate">
                   {categories[type].map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Party (Customer/Vendor)</label>
-              <select value={entityId} onChange={e => setEntityId(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 font-black text-xs border-none">
-                <option value="">Walking Customer / Misc</option>
-                {entities.filter(e => type === TransactionType.INCOME ? e.type === 'CLIENT' : e.type === 'VENDOR').map(ent => <option key={ent.id} value={ent.id}>{ent.name} (Bal: {ent.balance})</option>)}
+            <div className="space-y-1.5 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl">
+              <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Party Details</label>
+              <select value={entityId} onChange={e => setEntityId(e.target.value)} className="w-full bg-transparent font-black text-sm border-none p-0 focus:ring-0">
+                <option value="">CASH CUSTOMER / WALKING</option>
+                {entities.filter(e => type === TransactionType.INCOME ? e.type === 'CLIENT' : e.type === 'VENDOR').map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
               </select>
             </div>
 
             {isInventoryMode && (
               <div className="grid grid-cols-[2fr_1fr] gap-3">
-                <div className="space-y-1">
-                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Product</label>
-                  <select value={productId} onChange={e => setProductId(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 font-black text-xs border-none">
+                <div className="space-y-1.5 p-3 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl">
+                  <label className="text-[8px] font-black text-indigo-400 uppercase tracking-widest block">Product</label>
+                  <select value={productId} onChange={e => setProductId(e.target.value)} className="w-full bg-transparent font-black text-xs border-none p-0 focus:ring-0">
                     <option value="">Select Item...</option>
                     {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Qty</label>
-                  <input type="number" value={quantity} onChange={e => setQuantity(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 font-black text-xs border-none text-center" />
+                <div className="space-y-1.5 p-3 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl">
+                  <label className="text-[8px] font-black text-indigo-400 uppercase tracking-widest block">Qty</label>
+                  <input type="number" value={quantity} onChange={e => setQuantity(e.target.value)} className="w-full bg-transparent font-black text-xs border-none p-0 focus:ring-0 text-center" />
                 </div>
               </div>
             )}
             
-            <div className="grid grid-cols-2 gap-3">
-              {paymentStatus === 'PAID' && (
-                <div className="space-y-1">
-                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Wallet</label>
-                  <select value={accountId} onChange={e => setAccountId(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 font-black text-[10px] border-none">
-                    {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
-                </div>
-              )}
-              <div className={`${paymentStatus !== 'PAID' ? 'col-span-2' : ''} space-y-1`}>
-                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Remarks/Note</label>
-                <input value={note} onChange={e => setNote(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 font-black text-[10px] border-none" placeholder="Add extra details..." />
-              </div>
+            <div className="space-y-1.5 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl">
+               <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Internal Notes / Remarks</label>
+               <input value={note} onChange={e => setNote(e.target.value)} className="w-full bg-transparent font-black text-sm border-none p-0 focus:ring-0" placeholder="Type here..." />
             </div>
+
+            {paymentStatus === 'PAID' && (
+              <div className="space-y-1.5 p-4 border border-indigo-100 dark:border-indigo-900/30 rounded-2xl">
+                <label className="text-[8px] font-black text-indigo-400 uppercase tracking-widest block">Payment Account</label>
+                <select value={accountId} onChange={e => setAccountId(e.target.value)} className="w-full bg-transparent font-black text-xs border-none p-0 focus:ring-0">
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+            )}
           </div>
 
-          <button type="submit" className="w-full py-5 bg-slate-950 dark:bg-white text-white dark:text-slate-950 rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale shadow-2xl">Record Entry</button>
+          <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale shadow-2xl shadow-indigo-500/20">Sync Data to Ledger</button>
         </div>
       </form>
     </div>

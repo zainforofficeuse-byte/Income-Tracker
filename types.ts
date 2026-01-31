@@ -47,7 +47,8 @@ export interface PricingRules {
 }
 
 export interface DbCloudConfig {
-  scriptUrl: string; // Google Apps Script URL
+  scriptUrl: string; 
+  remoteConfigUrl?: string; // GitHub Raw Link
   autoSync: boolean;
   isConnected: boolean;
 }
