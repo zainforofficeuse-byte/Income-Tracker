@@ -1,4 +1,5 @@
 
+
 export enum TransactionType {
   INCOME = 'INCOME',
   EXPENSE = 'EXPENSE',
@@ -87,6 +88,15 @@ export interface Entity {
   balance: number; 
 }
 
+// Fixed: Defined CartItem interface to be shared across components
+export interface CartItem {
+  id: string;
+  productId: string;
+  name: string;
+  quantity: number;
+  price: number;
+}
+
 export interface Transaction {
   id: string;
   companyId: string;
@@ -100,6 +110,8 @@ export interface Transaction {
   entityId?: string; 
   productId?: string; 
   quantity?: number; 
+  // Fixed: Added cart property to Transaction interface to resolve missing property error in Reports.tsx
+  cart?: CartItem[];
   paymentStatus: 'PAID' | 'CREDIT';
   createdBy: string; 
   syncStatus: 'SYNCED' | 'PENDING';

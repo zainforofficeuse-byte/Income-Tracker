@@ -88,56 +88,26 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const bootFromGitHub = async (url: string) => {
-    if (!url || !isOnline) return;
-    try {
-      const res = await fetch(url);
-      const scriptUrl = (await res.text()).trim();
-      if (scriptUrl.startsWith('http')) {
-        setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, scriptUrl, isConnected: true } }));
-        return scriptUrl;
-      }
-    } catch (e) { console.error("GitHub Boot Error:", e); }
-    return null;
-  };
-
-  const restoreEverything = async (overrideUrl?: string) => {
-    const targetUrl = overrideUrl || settings.cloud.scriptUrl;
-    if (!targetUrl || !isOnline) return;
-    setIsSyncing(true);
-    try {
-      const sysRes = await fetch(targetUrl, { method: 'POST', body: JSON.stringify({ action: 'pull_system' }) });
-      const sysData = await sysRes.json();
-      if (sysData.status === 'success') {
-        setCompanies(sysData.companies);
-        setUsers(sysData.users);
-      }
-      const txRes = await fetch(targetUrl, { method: 'POST', body: JSON.stringify({ action: 'pull', companyId: activeCompanyId }) });
-      const txData = await txRes.json();
-      if (txData.status === 'success') {
-        setTransactions(prev => [...prev.filter(t => t.companyId !== activeCompanyId), ...txData.transactions]);
-      }
-      setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, isConnected: true } }));
-    } catch (e) { console.error("Restore failed:", e); } finally { setIsSyncing(false); }
-  };
-
   useEffect(() => {
     const init = async () => {
       const saved = localStorage.getItem(STORAGE_KEY);
-      let mergedSettings = settings;
       if (saved) {
         const p = JSON.parse(saved);
-        setCompanies(p.companies || INITIAL_COMPANIES);
-        setUsers(p.users || INITIAL_USERS);
-        setTransactions(p.transactions || []);
-        setAccounts(p.accounts || accounts);
-        setProducts(p.products || []);
-        setEntities(p.entities || []);
-        if (p.settings) mergedSettings = { ...settings, ...p.settings };
+        if (p.companies) setCompanies(p.companies);
+        if (p.users) setUsers(p.users);
+        if (p.transactions) setTransactions(p.transactions);
+        if (p.accounts) setAccounts(p.accounts);
+        if (p.products) setProducts(p.products);
+        if (p.entities) setEntities(p.entities);
+        if (p.settings) {
+          setSettings(prev => ({
+            ...prev,
+            ...p.settings,
+            pricingRules: { ...prev.pricingRules, ...(p.settings.pricingRules || {}) },
+            cloud: { ...prev.cloud, ...(p.settings.cloud || {}) }
+          }));
+        }
       }
-      const finalGithub = mergedSettings.cloud.remoteConfigUrl || MASTER_CONFIG_URL;
-      if (finalGithub) await bootFromGitHub(finalGithub);
-      else setSettings(mergedSettings);
       setIsInitialized(true);
     };
     init();
@@ -154,13 +124,25 @@ const App: React.FC = () => {
   const addTransaction = (tx: any) => {
     if (!currentUser) return;
     const newTx = { ...tx, id: crypto.randomUUID(), companyId: activeCompanyId, createdBy: currentUser.id, syncStatus: 'PENDING', version: 1, updatedAt: new Date().toISOString() };
+    
     setTransactions(prev => [newTx, ...prev]);
+
     if (tx.paymentStatus === 'PAID') {
       setAccounts(prev => prev.map(a => a.id === tx.accountId ? { ...a, balance: a.balance + (tx.type === TransactionType.INCOME ? tx.amount : -tx.amount) } : a));
     }
+
     if (tx.entityId) {
        setEntities(prev => prev.map(e => e.id === tx.entityId ? { ...e, balance: e.balance + (tx.type === TransactionType.INCOME ? tx.amount : -tx.amount) } : e));
     }
+
+    if (tx.cart) {
+      tx.cart.forEach((item: any) => {
+        setProducts(prev => prev.map(p => p.id === item.productId ? { ...p, stock: p.stock + (tx.type === TransactionType.INCOME ? -item.quantity : item.quantity) } : p));
+      });
+    } else if (tx.productId) {
+      setProducts(prev => prev.map(p => p.id === tx.productId ? { ...p, stock: p.stock + (tx.type === TransactionType.INCOME ? -tx.quantity : tx.quantity) } : p));
+    }
+
     setActiveTab('ledger');
   };
 
@@ -172,12 +154,13 @@ const App: React.FC = () => {
 
   const currencySymbol = useMemo(() => CURRENCIES.find(c => c.code === settings.currency)?.symbol || 'Rs.', [settings.currency]);
 
-  // Status Indicator logic: Amber=Offline, Blue=Local, Green=Cloud
   const connectionStatus = useMemo(() => {
     if (!isOnline) return { label: 'Offline', color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', bullet: 'bg-amber-500' };
-    if (settings.cloud.isConnected && settings.cloud.scriptUrl) return { label: 'Cloud Active', color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', bullet: 'bg-emerald-500' };
+    if (settings.cloud.scriptUrl) return { label: 'Linked', color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', bullet: 'bg-emerald-500' };
     return { label: 'Local Only', color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-900/20', bullet: 'bg-indigo-500' };
-  }, [isOnline, settings.cloud.isConnected, settings.cloud.scriptUrl]);
+  }, [isOnline, settings.cloud.scriptUrl]);
+
+  const restoreEverything = async () => { };
 
   if (!isInitialized) return null;
   if (isLocked) return <AuthGuard companies={companies} users={users} onUnlock={(userId) => { setCurrentUserId(userId); setIsLocked(false); }} />;
@@ -223,6 +206,7 @@ const App: React.FC = () => {
           )}
           {activeTab === 'inventory' && <Inventory products={companyProducts} setProducts={setProducts} currencySymbol={currencySymbol} globalSettings={settings} onNewTags={() => {}} activeCompanyId={activeCompanyId} />}
           {activeTab === 'add' && <TransactionForm accounts={companyAccounts} products={companyProducts} entities={companyEntities} onAdd={addTransaction} settings={settings} categories={DEFAULT_CATEGORIES} />}
+          {activeTab === 'reports' && <Reports transactions={companyTransactions} products={companyProducts} entities={companyEntities} accounts={companyAccounts} currencySymbol={currencySymbol} />}
           {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} onRegister={handleRegisterCompany} transactions={transactions} accounts={accounts} settings={settings} onUpdateConfig={() => {}} onConnect={() => {}} isOnline={isOnline} />}
           {activeTab === 'users' && !isSuper && <UserManagement users={users} setUsers={setUsers} currentUserRole={currentUser!.role} />}
           {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={DEFAULT_CATEGORIES} setCategories={() => {}} transactions={companyTransactions} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={() => {}} onFetchCloud={restoreEverything} />}
@@ -240,12 +224,14 @@ const App: React.FC = () => {
             { id: 'ledger', icon: Icons.Ledger, label: 'Books' },
             { id: 'add', icon: Icons.Plus, label: 'New' },
             { id: 'inventory', icon: Icons.Inventory, label: 'Stock' },
+            { id: 'reports', icon: Icons.Reports, label: 'Data' },
             { id: 'settings', icon: Icons.Settings, label: 'Setup' },
           ] : [
             { id: 'dashboard', icon: Icons.Dashboard, label: 'Hub' },
             { id: 'ledger', icon: Icons.Ledger, label: 'Books' },
             { id: 'add', icon: Icons.Plus, label: 'New' },
             { id: 'inventory', icon: Icons.Inventory, label: 'Stock' },
+            { id: 'reports', icon: Icons.Reports, label: 'Data' },
             { id: 'settings', icon: Icons.Settings, label: 'Setup' },
           ]).map((item) => (
             <button key={item.id} onClick={() => setActiveTab(item.id as Tab)} className={`flex-1 min-w-[50px] flex flex-col items-center gap-1 p-3 rounded-3xl transition-all duration-300 ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>

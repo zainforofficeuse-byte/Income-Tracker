@@ -15,6 +15,7 @@ interface InventoryProps {
 
 const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySymbol, globalSettings, onNewTags, activeCompanyId }) => {
   const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -97,28 +98,39 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
     reader.readAsDataURL(file);
   };
 
-  const addProduct = () => {
+  const saveProduct = () => {
     if (!newP.name) return;
-    const finalSku = newP.sku && newP.sku.trim() !== '' ? newP.sku : `SKU-${Math.random().toString(36).substring(7).toUpperCase()}`;
     
-    const finalProduct: Product = {
-      ...newP,
-      id: crypto.randomUUID(),
-      companyId: activeCompanyId,
-      sku: finalSku,
-      categories: newP.categories || [],
-      purchasePrice: newP.purchasePrice || 0,
-      sellingPrice: newP.sellingPrice || 0,
-      stock: newP.stock || 0,
-      minStock: newP.minStock || 5,
-      name: newP.name || 'Unnamed Product',
-      imageUrl: newP.imageUrl
-    } as Product;
+    if (editingId) {
+      setProducts(prev => prev.map(p => p.id === editingId ? { ...p, ...newP } as Product : p));
+      setEditingId(null);
+    } else {
+      const finalSku = newP.sku && newP.sku.trim() !== '' ? newP.sku : `SKU-${Math.random().toString(36).substring(7).toUpperCase()}`;
+      const finalProduct: Product = {
+        ...newP,
+        id: crypto.randomUUID(),
+        companyId: activeCompanyId,
+        sku: finalSku,
+        categories: newP.categories || [],
+        purchasePrice: newP.purchasePrice || 0,
+        sellingPrice: newP.sellingPrice || 0,
+        stock: newP.stock || 0,
+        minStock: newP.minStock || 5,
+        name: newP.name || 'Unnamed Product',
+        imageUrl: newP.imageUrl
+      } as Product;
+      setProducts(prev => [...prev, finalProduct]);
+      onNewTags(newP.categories || []);
+    }
 
-    setProducts(prev => [...prev, finalProduct]);
-    onNewTags(newP.categories || []);
     setIsAdding(false);
     setNewP({ name: '', sku: '', purchasePrice: 0, sellingPrice: 0, stock: 0, minStock: 5, categories: [], imageUrl: undefined });
+  };
+
+  const startEdit = (p: Product) => {
+    setNewP({ ...p });
+    setEditingId(p.id);
+    setIsAdding(true);
   };
 
   return (
@@ -128,13 +140,27 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
           <h2 className="text-2xl font-black tracking-tightest">Inventory</h2>
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 italic">Company Stock Control</p>
         </div>
-        <button onClick={() => setIsAdding(!isAdding)} className={`h-12 w-12 rounded-2xl shadow-xl active-scale transition-all flex items-center justify-center ${isAdding ? 'bg-rose-500 text-white' : 'bg-indigo-600 text-white'}`}>
+        <button 
+          onClick={() => {
+            if (isAdding) {
+              setIsAdding(false);
+              setEditingId(null);
+              setNewP({ name: '', sku: '', purchasePrice: 0, sellingPrice: 0, stock: 0, minStock: 5, categories: [], imageUrl: undefined });
+            } else {
+              setIsAdding(true);
+            }
+          }} 
+          className={`h-12 w-12 rounded-2xl shadow-xl active-scale transition-all flex items-center justify-center ${isAdding ? 'bg-rose-500 text-white' : 'bg-indigo-600 text-white'}`}
+        >
           {isAdding ? '×' : <UI.Plus className="w-6 h-6" />}
         </button>
       </div>
 
       {isAdding && (
         <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 premium-shadow border-2 border-indigo-500/10 space-y-6 animate-in zoom-in-95 duration-300">
+          <div className="text-center">
+            <h3 className="text-sm font-black uppercase tracking-widest text-indigo-600">{editingId ? 'Update Product' : 'New Catalog Item'}</h3>
+          </div>
           
           <div className="flex flex-col items-center gap-4">
              <div className="relative w-32 h-32 bg-slate-100 dark:bg-slate-800 rounded-[2rem] overflow-hidden group">
@@ -160,7 +186,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
               className="flex items-center gap-2 px-6 py-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-2xl text-[9px] font-black uppercase tracking-widest active-scale border border-indigo-100 dark:border-indigo-900/30"
              >
                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
-               {isScanning ? 'AI Scanning...' : 'AI Photo Scan'}
+               {isScanning ? 'AI Scanning...' : (newP.imageUrl ? 'Retake Photo' : 'AI Photo Scan')}
              </button>
           </div>
 
@@ -191,16 +217,18 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Open Stock</label>
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Stock Count</label>
               <input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none" value={newP.stock || ''} onChange={e => setNewP({...newP, stock: parseFloat(e.target.value) || 0})} />
             </div>
             <div className="space-y-1">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Alert Threshold</label>
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Alert At</label>
               <input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none" value={newP.minStock || ''} onChange={e => setNewP({...newP, minStock: parseFloat(e.target.value) || 0})} />
             </div>
           </div>
 
-          <button onClick={addProduct} className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale shadow-xl shadow-indigo-500/20">Add to Catalog</button>
+          <button onClick={saveProduct} className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale shadow-xl shadow-indigo-500/20">
+            {editingId ? 'Update Item' : 'Add to Catalog'}
+          </button>
         </div>
       )}
 
@@ -220,8 +248,12 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
                   <h4 className="font-black text-[15px] tracking-tight">{p.name}</h4>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{p.sku}</span>
-                    <span className="h-1 w-1 rounded-full bg-slate-200"></span>
-                    <span className="text-[9px] font-black text-indigo-400 uppercase">Cost: {currencySymbol}{p.purchasePrice}</span>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); startEdit(p); }}
+                      className="text-indigo-600 opacity-40 hover:opacity-100 transition-opacity"
+                    >
+                       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                    </button>
                   </div>
                 </div>
               </div>
