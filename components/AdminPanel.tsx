@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Transaction, Account, UserSettings, Company, User, UserRole } from '../types';
+import { Icons } from '../constants';
 
 interface AdminPanelProps {
   companies: Company[];
@@ -14,7 +15,7 @@ interface AdminPanelProps {
   isOnline: boolean;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, transactions, isOnline }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, transactions, accounts, settings, isOnline }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newAdminName, setNewAdminName] = useState('');
@@ -22,8 +23,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, t
 
   const syncStats = useMemo(() => {
     const pending = transactions.filter(t => t.syncStatus === 'PENDING').length;
-    const synced = transactions.filter(t => t.syncStatus === 'SYNCED').length;
-    return { pending, synced };
+    return { pending };
   }, [transactions]);
 
   const handleRegister = () => {
@@ -33,6 +33,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, t
     setNewAdminName('');
     setNewAdminPin('');
     setIsAdding(false);
+  };
+
+  const handleManualBackup = () => {
+    const data = { companies, users, transactions, accounts, settings };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `TRACKR_BACKUP_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -46,7 +57,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, t
         <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow flex flex-col items-center border border-black/[0.02] dark:border-white/5">
            <p className="text-[8px] font-black text-slate-400 uppercase mb-2 text-center">Cloud Health</p>
            <div className="flex items-center gap-2">
-              <div className={`h-2 w-2 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500'}`} />
+              <div className={`h-2 w-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-rose-500'}`} />
               <p className={`text-sm font-black uppercase ${isOnline ? 'text-emerald-500' : 'text-rose-500'}`}>{isOnline ? 'Online' : 'Offline'}</p>
            </div>
         </div>
@@ -56,6 +67,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, t
              {syncStats.pending} Pending
            </p>
         </div>
+      </section>
+
+      {/* Manual Backup Utility */}
+      <section className="bg-slate-950 rounded-[3rem] p-8 text-white space-y-4">
+         <div className="flex items-center justify-between">
+           <h3 className="text-[10px] font-black uppercase tracking-widest opacity-50">Enterprise Vault</h3>
+           <Icons.Admin className="w-5 h-5 text-indigo-500" />
+         </div>
+         <p className="text-xs font-bold opacity-80 leading-relaxed">Download a complete snapshot of your local database. Use this as a failsafe for manual migrations.</p>
+         <button 
+           onClick={handleManualBackup}
+           className="w-full py-4 bg-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] active-scale shadow-lg shadow-indigo-500/20"
+         >
+           Export Offline Data
+         </button>
       </section>
 
       <section className="space-y-6">
@@ -70,16 +96,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, t
           <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] premium-shadow border-2 border-indigo-500/10 space-y-6 animate-in zoom-in-95 duration-300">
              <div className="space-y-1">
                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Company Name</label>
-               <input value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none" placeholder="e.g. Al-Falah Fabrics" />
+               <input value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none" placeholder="e.g. Azeem Solutions" />
              </div>
              <div className="grid grid-cols-2 gap-4">
                <div className="space-y-1">
                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Admin Name</label>
-                 <input value={newAdminName} onChange={e => setNewAdminName(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none" placeholder="Owner Name" />
+                 <input value={newAdminName} onChange={e => setNewAdminName(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none" />
                </div>
                <div className="space-y-1">
                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Initial PIN</label>
-                 <input maxLength={4} value={newAdminPin} onChange={e => setNewAdminPin(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none text-center tracking-widest" placeholder="1234" />
+                 <input maxLength={4} value={newAdminPin} onChange={e => setNewAdminPin(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none text-center" />
                </div>
              </div>
              <button onClick={handleRegister} className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale">Provision License</button>
@@ -99,9 +125,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, t
                      Admin: {users.find(u => u.companyId === company.id && u.role === UserRole.ADMIN)?.name || 'Unassigned'}
                    </p>
                  </div>
-              </div>
-              <div className="text-right">
-                 <span className="text-[8px] font-black bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 px-2 py-1 rounded-full uppercase tracking-widest">Active</span>
               </div>
             </div>
           ))}

@@ -46,6 +46,17 @@ export interface PricingRules {
   customAdjustments: PricingAdjustment[];
 }
 
+export interface DbCloudConfig {
+  host: string;
+  port: string;
+  dbName: string;
+  dbUser: string;
+  dbPass: string;
+  bridgeUrl: string; // The PHP bridge on Hostinger
+  autoSync: boolean;
+  isConnected: boolean;
+}
+
 export interface UserSettings {
   currency: string;
   darkMode: boolean;
@@ -54,6 +65,7 @@ export interface UserSettings {
   inventoryCategories: string[];
   remoteDbConnected: boolean;
   pricingRules: PricingRules;
+  cloud: DbCloudConfig; 
 }
 
 export interface Product {
@@ -94,6 +106,8 @@ export interface Transaction {
   paymentStatus: 'PAID' | 'CREDIT';
   createdBy: string; 
   syncStatus: 'SYNCED' | 'PENDING';
+  version: number; 
+  updatedAt: string;
 }
 
 export interface Account {
