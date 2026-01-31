@@ -9,11 +9,11 @@ interface InventoryProps {
   currencySymbol: string;
   globalSettings: UserSettings;
   onNewTags: (tags: string[]) => void;
+  activeCompanyId: string;
 }
 
-const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySymbol, globalSettings, onNewTags }) => {
+const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySymbol, globalSettings, onNewTags, activeCompanyId }) => {
   const [isAdding, setIsAdding] = useState(false);
-  const [showSmartPricing, setShowSmartPricing] = useState(false);
 
   const [newP, setNewP] = useState<Partial<Product>>({ 
     name: '', 
@@ -25,7 +25,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
     categories: []
   });
 
-  // AUTO-PILOT LOGIC: Whenever purchase price changes, calculate selling price if autoApply is on
+  // PROFESSIONAL AUTO-PILOT PRICING LOGIC
   useEffect(() => {
     if (globalSettings.pricingRules.autoApply && newP.purchasePrice && newP.purchasePrice > 0) {
       const rules = globalSettings.pricingRules;
@@ -50,7 +50,22 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
   const addProduct = () => {
     if (!newP.name) return;
     const finalSku = newP.sku && newP.sku.trim() !== '' ? newP.sku : `SKU-${Math.random().toString(36).substring(7).toUpperCase()}`;
-    setProducts(prev => [...prev, { ...newP, id: crypto.randomUUID(), sku: finalSku, categories: newP.categories || [] } as Product]);
+    
+    // CRITICAL FIX: Explicitly set companyId so it shows up for this company
+    const finalProduct: Product = {
+      ...newP,
+      id: crypto.randomUUID(),
+      companyId: activeCompanyId,
+      sku: finalSku,
+      categories: newP.categories || [],
+      purchasePrice: newP.purchasePrice || 0,
+      sellingPrice: newP.sellingPrice || 0,
+      stock: newP.stock || 0,
+      minStock: newP.minStock || 5,
+      name: newP.name || 'Unnamed Product'
+    };
+
+    setProducts(prev => [...prev, finalProduct]);
     onNewTags(newP.categories || []);
     setIsAdding(false);
     setNewP({ name: '', sku: '', purchasePrice: 0, sellingPrice: 0, stock: 0, minStock: 5, categories: [] });
@@ -61,7 +76,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
       <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow border border-black/[0.02] flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-black tracking-tightest">Inventory</h2>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Catalog & Stock Control</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 italic">Company Stock Control</p>
         </div>
         <button onClick={() => setIsAdding(!isAdding)} className={`h-12 w-12 rounded-2xl shadow-xl active-scale transition-all flex items-center justify-center ${isAdding ? 'bg-rose-500 text-white' : 'bg-indigo-600 text-white'}`}>
           {isAdding ? '×' : <UI.Plus className="w-6 h-6" />}
@@ -71,68 +86,89 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
       {isAdding && (
         <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 premium-shadow border-2 border-indigo-500/10 space-y-6 animate-in zoom-in-95 duration-300">
           <div className="space-y-1">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Product Name</label>
-            <input placeholder="Item Name" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-bold text-sm border-none" value={newP.name} onChange={e => setNewP({...newP, name: e.target.value})} />
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Product Title</label>
+            <input placeholder="e.g. Premium Cotton Shirt" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-bold text-sm border-none focus:ring-2 focus:ring-indigo-500/20" value={newP.name} onChange={e => setNewP({...newP, name: e.target.value})} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Purchase Price (Cost)</label>
-              <input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none border-2 border-indigo-500/10" value={newP.purchasePrice || ''} onChange={e => setNewP({...newP, purchasePrice: parseFloat(e.target.value) || 0})} />
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Purchase Cost</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-300">{currencySymbol}</span>
+                <input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 pl-10 pr-4 font-black text-sm border-none border-2 border-indigo-500/5 focus:ring-2 focus:ring-indigo-500/20" value={newP.purchasePrice || ''} onChange={e => setNewP({...newP, purchasePrice: parseFloat(e.target.value) || 0})} />
+              </div>
             </div>
             <div className="space-y-1 relative">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Selling Price</label>
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Retail Price</label>
               <div className="relative">
-                <input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none pr-12" value={newP.sellingPrice || ''} onChange={e => setNewP({...newP, sellingPrice: parseFloat(e.target.value) || 0})} />
-                <div className={`absolute right-3 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg flex items-center justify-center transition-colors ${globalSettings.pricingRules.autoApply ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
-                  <UI.Admin className="w-4 h-4" />
+                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-300">{currencySymbol}</span>
+                <input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 pl-10 pr-12 font-black text-sm border-none focus:ring-2 focus:ring-indigo-500/20" value={newP.sellingPrice || ''} onChange={e => setNewP({...newP, sellingPrice: parseFloat(e.target.value) || 0})} />
+                <div className={`absolute right-3 top-1/2 -translate-y-1/2 h-7 w-7 rounded-lg flex items-center justify-center transition-all ${globalSettings.pricingRules.autoApply ? 'bg-indigo-600 text-white animate-pulse' : 'bg-slate-200 text-slate-500'}`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
                 </div>
               </div>
               <p className={`text-[8px] font-black uppercase tracking-widest mt-1 ml-2 ${parseFloat(profitMargin.toString()) > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                {profitMargin}% Profit Margin
+                {profitMargin}% Estimated Margin
               </p>
             </div>
           </div>
 
           {globalSettings.pricingRules.autoApply && (
-             <p className="text-[8px] font-black text-indigo-500 uppercase tracking-widest text-center py-2 bg-indigo-50 dark:bg-indigo-900/10 rounded-xl">
-               ★ Global Pricing Master Rules Active
-             </p>
+             <div className="flex items-center justify-center gap-2 py-2 px-4 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100/50">
+               <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping" />
+               <p className="text-[8px] font-black text-indigo-500 uppercase tracking-[0.2em]">Master Logic Synchronized</p>
+             </div>
           )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Current Stock</label>
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Open Stock</label>
               <input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none" value={newP.stock || ''} onChange={e => setNewP({...newP, stock: parseFloat(e.target.value) || 0})} />
             </div>
             <div className="space-y-1">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Min Alert</label>
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Alert Threshold</label>
               <input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none" value={newP.minStock || ''} onChange={e => setNewP({...newP, minStock: parseFloat(e.target.value) || 0})} />
             </div>
           </div>
 
-          <button onClick={addProduct} className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale">Save Product</button>
+          <button onClick={addProduct} className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest active-scale shadow-xl shadow-indigo-500/20">Add to Catalog</button>
         </div>
       )}
 
       <div className="space-y-4">
-        {products.map(p => (
-          <div key={p.id} className="bg-white dark:bg-slate-900 rounded-[2rem] p-5 premium-shadow border border-black/[0.02] flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${p.stock <= p.minStock ? 'bg-rose-50 text-rose-500' : 'bg-slate-50 text-indigo-500'}`}>
-                <UI.Inventory className="w-6 h-6" />
+        {products.length > 0 ? (
+          products.map(p => (
+            <div key={p.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow border border-black/[0.01] dark:border-white/5 flex items-center justify-between group hover:border-indigo-500/20 transition-all duration-500">
+              <div className="flex items-center gap-5">
+                <div className={`h-14 w-14 rounded-[1.5rem] flex items-center justify-center shadow-inner transition-all duration-500 ${p.stock <= p.minStock ? 'bg-rose-50 text-rose-500 rotate-12' : 'bg-slate-50 dark:bg-slate-800 text-indigo-500 group-hover:rotate-6'}`}>
+                  <UI.Inventory className="w-7 h-7" />
+                </div>
+                <div>
+                  <h4 className="font-black text-[15px] tracking-tight">{p.name}</h4>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{p.sku}</span>
+                    <span className="h-1 w-1 rounded-full bg-slate-200"></span>
+                    <span className="text-[9px] font-black text-indigo-400 uppercase">Cost: {currencySymbol}{p.purchasePrice}</span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <h4 className="font-black text-sm">{p.name}</h4>
-                <p className="text-[9px] font-bold text-slate-400 uppercase">{p.sku}</p>
+              <div className="text-right">
+                <p className={`font-black text-lg leading-tight ${p.stock <= p.minStock ? 'text-rose-500' : 'text-slate-900 dark:text-white'}`}>{p.stock} Units</p>
+                <div className="flex items-center justify-end gap-1 mt-1">
+                  <span className="text-[8px] font-black text-slate-400 uppercase">MRP</span>
+                  <span className="text-[11px] font-black text-indigo-500 tracking-tight">{currencySymbol}{p.sellingPrice.toLocaleString()}</span>
+                </div>
               </div>
             </div>
-            <div className="text-right">
-              <p className={`font-black text-base ${p.stock <= p.minStock ? 'text-rose-500' : 'text-slate-900 dark:text-white'}`}>{p.stock} Units</p>
-              <p className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">{currencySymbol}{p.sellingPrice.toLocaleString()}</p>
+          ))
+        ) : (
+          <div className="py-24 flex flex-col items-center justify-center gap-4 opacity-30 grayscale">
+            <div className="w-20 h-20 rounded-full border-2 border-dashed border-slate-400 flex items-center justify-center">
+               <UI.Inventory className="w-8 h-8" />
             </div>
+            <p className="text-[10px] font-black uppercase tracking-[0.4em]">Inventory Empty</p>
           </div>
-        ))}
+        )}
       </div>
     </div>
   );

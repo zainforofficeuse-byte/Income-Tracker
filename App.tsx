@@ -12,6 +12,7 @@ import AdminPanel from './components/AdminPanel';
 import Parties from './components/Parties';
 import UserManagement from './components/UserManagement';
 import AuthGuard from './components/AuthGuard';
+import ProfileModal from './components/ProfileModal';
 
 const STORAGE_KEY = 'trackr_enterprise_v2';
 
@@ -35,6 +36,7 @@ const App: React.FC = () => {
   
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [isLocked, setIsLocked] = useState(true);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const currentUser = useMemo(() => users.find(u => u.id === currentUserId) || null, [users, currentUserId]);
@@ -95,6 +97,11 @@ const App: React.FC = () => {
     setAccounts(prev => [...prev, { id: `acc-${crypto.randomUUID()}`, companyId: newCompanyId, name: 'Store Cash', balance: 0, color: 'emerald', type: 'CASH' }]);
   };
 
+  const handleUpdateProfile = (updatedUser: User) => {
+    setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+    setIsProfileOpen(false);
+  };
+
   const addTransaction = (tx: any) => {
     if (!currentUser) return;
     const newTx = { ...tx, id: crypto.randomUUID(), companyId: currentUser.companyId, createdBy: currentUser.id };
@@ -148,7 +155,7 @@ const App: React.FC = () => {
               <Icons.Admin className="w-5 h-5" />
             </button>
           )}
-          <button onClick={() => setIsLocked(true)} className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center active-scale transition-transform overflow-hidden border-2 border-indigo-500/10">
+          <button onClick={() => setIsProfileOpen(true)} className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center active-scale transition-transform overflow-hidden border-2 border-indigo-500/10">
             {currentUser?.avatar ? <img src={currentUser.avatar} className="w-full h-full object-cover" /> : <span className="font-black text-indigo-500">{currentUser?.name[0]}</span>}
           </button>
         </div>
@@ -157,13 +164,32 @@ const App: React.FC = () => {
       <main className="flex-1 overflow-y-auto no-scrollbar px-6 pb-40">
           {activeTab === 'dashboard' && <Dashboard transactions={companyTransactions} accounts={companyAccounts} products={companyProducts} currencySymbol={currencySymbol} />}
           {activeTab === 'ledger' && <Ledger transactions={companyTransactions} accounts={companyAccounts} products={companyProducts} currencySymbol={currencySymbol} categories={DEFAULT_CATEGORIES} onDelete={() => {}} onUpdate={() => {}} />}
-          {activeTab === 'inventory' && <Inventory products={companyProducts} setProducts={setProducts} currencySymbol={currencySymbol} globalSettings={settings} onNewTags={() => {}} />}
+          {activeTab === 'inventory' && (
+            <Inventory 
+              products={companyProducts} 
+              setProducts={setProducts} 
+              currencySymbol={currencySymbol} 
+              globalSettings={settings} 
+              onNewTags={() => {}}
+              activeCompanyId={activeCompanyId}
+            />
+          )}
           {activeTab === 'parties' && <Parties entities={companyEntities} setEntities={setEntities} currencySymbol={currencySymbol} transactions={companyTransactions} />}
           {activeTab === 'add' && <TransactionForm accounts={companyAccounts} products={companyProducts} entities={companyEntities} onAdd={addTransaction} settings={settings} categories={DEFAULT_CATEGORIES} />}
           {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} onRegister={handleRegisterCompany} transactions={transactions} accounts={accounts} settings={settings} onUpdateConfig={() => {}} onConnect={() => {}} />}
           {activeTab === 'users' && !isSuper && <UserManagement users={companyUsers} setUsers={setUsers} currentUserRole={currentUser!.role} />}
           {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={DEFAULT_CATEGORIES} setCategories={() => {}} transactions={companyTransactions} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={() => {}} />}
       </main>
+
+      {/* Profile Modal */}
+      {isProfileOpen && currentUser && (
+        <ProfileModal 
+          user={currentUser} 
+          onClose={() => setIsProfileOpen(false)} 
+          onSave={handleUpdateProfile}
+          onLogout={() => { setIsProfileOpen(false); setIsLocked(true); }}
+        />
+      )}
 
       <div className="absolute bottom-10 left-0 right-0 px-6 z-50 pointer-events-none">
         <nav className="glass rounded-[2.5rem] p-1.5 flex justify-between items-center premium-shadow pointer-events-auto">
