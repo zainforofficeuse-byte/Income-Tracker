@@ -17,7 +17,7 @@ import ProfileModal from './components/ProfileModal';
 const STORAGE_KEY = 'trackr_enterprise_v3';
 
 // PASTE YOUR GITHUB RAW LINK HERE (e.g., https://raw.githubusercontent.com/user/repo/main/config.txt)
-const MASTER_CONFIG_URL = ''; 
+const MASTER_CONFIG_URL = 'https://raw.githubusercontent.com/zainforofficeuse-byte/Income-Tracker/refs/heads/main/config.txt'; 
 
 const INITIAL_COMPANIES: Company[] = [
   { id: 'company-azeem', name: 'Azeem Solutions', registrationDate: new Date().toISOString(), status: 'ACTIVE' }
