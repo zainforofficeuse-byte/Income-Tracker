@@ -25,9 +25,10 @@ export interface User {
   companyId: string;
   name: string;
   email: string;
-  password: string; // Stored in local storage for this demo
-  pin: string; // Added pin property for staff hub and security
+  password: string; 
+  pin: string; 
   role: UserRole;
+  status: 'ACTIVE' | 'PENDING' | 'REJECTED'; // Added for approval logic
   avatar?: string;
 }
 
@@ -50,7 +51,7 @@ export interface PricingRules {
 
 export interface DbCloudConfig {
   scriptUrl: string; 
-  remoteConfigUrl?: string; // GitHub Raw Link
+  remoteConfigUrl?: string; 
   autoSync: boolean;
   isConnected: boolean;
 }

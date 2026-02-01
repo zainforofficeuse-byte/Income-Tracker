@@ -6,6 +6,7 @@ import { Icons } from '../constants';
 interface AdminPanelProps {
   companies: Company[];
   users: User[];
+  setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   onRegister: (name: string, adminName: string, adminEmail: string, adminPass: string) => any;
   onUpdateCompany: (compId: string, updates: Partial<Company>, adminUpdates: Partial<User>) => void;
   transactions: Transaction[];
@@ -15,7 +16,7 @@ interface AdminPanelProps {
   onTriggerBackup?: () => void;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, onUpdateCompany, transactions, accounts, settings, isOnline, onTriggerBackup }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, setUsers, onRegister, onUpdateCompany, transactions, accounts, settings, isOnline, onTriggerBackup }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
@@ -24,6 +25,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, o
     const pending = transactions.filter(t => t.syncStatus === 'PENDING').length;
     return { pending };
   }, [transactions]);
+
+  const pendingApprovals = useMemo(() => users.filter(u => u.status === 'PENDING'), [users]);
 
   const handleAction = () => {
     if (editingId) {
@@ -41,6 +44,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, o
       if (!formData.name || !formData.adminName || !formData.adminEmail || formData.adminPin?.length !== 4) return;
       onRegister(formData.name, formData.adminName, formData.adminEmail, formData.adminPin);
       resetForm();
+    }
+  };
+
+  const approveUser = (userId: string) => {
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: 'ACTIVE' } : u));
+  };
+
+  const rejectUser = (userId: string) => {
+    if (confirm("Permanently reject this access request?")) {
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: 'REJECTED' } : u));
     }
   };
 
@@ -69,6 +82,38 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, onRegister, o
          <h2 className="text-2xl font-black tracking-tightest uppercase text-slate-900 dark:text-white">System Control</h2>
          <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mt-1 italic">Enterprise Provider Authority</p>
       </div>
+
+      {/* User Access Requests (New Module) */}
+      <section className="space-y-4">
+         <div className="flex items-center justify-between px-2">
+            <h3 className="text-[10px] font-black text-rose-500 uppercase tracking-[0.3em]">Pending Access Requests ({pendingApprovals.length})</h3>
+         </div>
+         {pendingApprovals.length > 0 ? (
+           <div className="space-y-3">
+             {pendingApprovals.map(user => (
+               <div key={user.id} className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] premium-shadow border-2 border-rose-500/10 flex items-center justify-between group animate-pulse hover:animate-none">
+                  <div className="flex items-center gap-4">
+                     <div className="h-12 w-12 rounded-xl bg-rose-50 dark:bg-rose-950 flex items-center justify-center font-black text-rose-500">
+                        {user.name[0]}
+                     </div>
+                     <div>
+                        <h4 className="font-black text-sm text-slate-900 dark:text-white">{user.name}</h4>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{user.email}</p>
+                     </div>
+                  </div>
+                  <div className="flex gap-2">
+                     <button onClick={() => approveUser(user.id)} className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest active-scale shadow-lg">Approve</button>
+                     <button onClick={() => rejectUser(user.id)} className="px-5 py-2.5 bg-rose-50 dark:bg-rose-900/10 text-rose-500 rounded-xl text-[9px] font-black uppercase tracking-widest active-scale border border-rose-100 dark:border-rose-500/20">Reject</button>
+                  </div>
+               </div>
+             ))}
+           </div>
+         ) : (
+           <div className="py-10 text-center opacity-30">
+              <p className="text-[9px] font-black uppercase tracking-widest">No pending verifications</p>
+           </div>
+         )}
+      </section>
 
       <section className="bg-emerald-950 rounded-[3rem] p-8 text-white relative overflow-hidden shadow-2xl">
          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[50px] rounded-full"></div>
