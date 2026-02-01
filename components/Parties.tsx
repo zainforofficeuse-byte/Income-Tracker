@@ -46,11 +46,11 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
       {/* Summary Analytics */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-emerald-50 dark:bg-emerald-900/10 p-6 rounded-[2.5rem] border border-emerald-100 dark:border-emerald-500/20 flex flex-col items-center">
-          <p className="text-[8px] font-black text-emerald-600 uppercase mb-1 tracking-widest">Receivables</p>
+          <p className="text-[8px] font-black text-emerald-600 uppercase mb-1 tracking-widest">Total Receivables</p>
           <p className="text-xl font-black text-emerald-600">{currencySymbol}{totalReceivable.toLocaleString()}</p>
         </div>
         <div className="bg-rose-50 dark:bg-rose-900/10 p-6 rounded-[2.5rem] border border-rose-100 dark:border-rose-500/20 flex flex-col items-center">
-          <p className="text-[8px] font-black text-rose-600 uppercase mb-1 tracking-widest">Payables</p>
+          <p className="text-[8px] font-black text-rose-600 uppercase mb-1 tracking-widest">Total Payables</p>
           <p className="text-xl font-black text-rose-600">{currencySymbol}{totalPayable.toLocaleString()}</p>
         </div>
       </div>
@@ -61,9 +61,9 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
          <button onClick={() => setFilterType('VENDOR')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${filterType === 'VENDOR' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-400'}`}>Vendors</button>
       </div>
 
-      {/* Header */}
+      {/* Controls */}
       <div className="flex items-center justify-between px-2">
-          <h3 className="text-sm font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{filterType === 'CLIENT' ? 'Customer' : 'Vendor'} Ledger</h3>
+          <h3 className="text-sm font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{filterType} Ledger</h3>
           {!isReadOnly && (
               <button onClick={() => setIsAdding(!isAdding)} className={`h-10 w-10 text-white rounded-xl flex items-center justify-center shadow-lg active-scale transition-all ${isAdding ? 'bg-rose-500 rotate-45' : 'bg-indigo-600'}`}>
                 <Icons.Add className="w-5 h-5" />
@@ -71,17 +71,17 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
           )}
       </div>
 
-      {/* Entry Form */}
+      {/* Restored Fields in Addition Form */}
       {isAdding && !isReadOnly && (
         <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] premium-shadow border-2 border-indigo-500/10 space-y-6 animate-in zoom-in-95 duration-300">
            <div className="space-y-4">
              <div className="space-y-1.5">
-               <label className="text-[9px] font-black text-indigo-600 uppercase tracking-widest ml-3">{filterType === 'CLIENT' ? 'Customer' : 'Vendor'} Name</label>
+               <label className="text-[9px] font-black text-indigo-600 uppercase tracking-widest ml-3">Full Legal Name</label>
                <input 
                 value={newEnt.name} 
                 onChange={e => setNewEnt({...newEnt, name: e.target.value})} 
                 className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none text-slate-900 dark:text-white" 
-                placeholder="Full Legal Name" 
+                placeholder="e.g. Azeem Traders Ltd" 
                />
              </div>
              <div className="grid grid-cols-2 gap-4">
@@ -113,7 +113,7 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
         </div>
       )}
 
-      {/* Entity List */}
+      {/* List Feed */}
       <div className="space-y-3">
         {entities.filter(e => e.type === filterType).map(ent => (
           <button 
@@ -137,12 +137,6 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
             </div>
           </button>
         ))}
-        {entities.filter(e => e.type === filterType).length === 0 && (
-          <div className="py-20 text-center opacity-20">
-             <Icons.Users className="w-10 h-10 mx-auto mb-4 text-slate-400" />
-             <p className="text-[10px] font-black uppercase tracking-widest">No matching accounts found</p>
-          </div>
-        )}
       </div>
 
       {/* Statement Modal */}

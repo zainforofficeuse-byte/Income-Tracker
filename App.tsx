@@ -15,7 +15,7 @@ import ProfileModal from './components/ProfileModal';
 import LandingPage from './components/LandingPage';
 import UserManagement from './components/UserManagement';
 
-const STORAGE_KEY = 'trackr_enterprise_v18_final';
+const STORAGE_KEY = 'trackr_enterprise_v19_stable';
 const MASTER_CONFIG_URL = 'https://raw.githubusercontent.com/zainforofficeuse-byte/config-file-income-tracker/refs/heads/main/config.txt'; 
 
 const hashPassword = async (password: string) => {
@@ -107,10 +107,10 @@ const App: React.FC = () => {
     return null;
   };
 
-  const syncToCloud = async (action: 'PUSH' | 'PULL') => {
+  const syncToCloud = async (action: 'PUSH' | 'PULL' | 'REMOTE_LOGIN', payload?: any) => {
     let url = settings.cloud.scriptUrl;
     if (!url) url = await fetchMasterConfig() || '';
-    if (!url || !isOnline) return;
+    if (!url || !isOnline) return null;
     
     setIsSyncing(true);
     try {
@@ -137,12 +137,48 @@ const App: React.FC = () => {
           if (d.companies) setCompanies(prev => [...prev.filter(c => c.id !== activeCompanyId), ...d.companies]);
           if (d.users) setUsers(prev => [...prev.filter(u => u.companyId !== activeCompanyId && u.id !== 'system-sa'), ...d.users]);
         }
+      } else if (action === 'REMOTE_LOGIN') {
+        const response = await fetch(`${url}?action=FIND_USER&email=${payload.email}`);
+        const result = await response.json();
+        return result.status === 'success' ? result.user : null;
       }
     } catch (err) {
-      console.error("Cloud Error:", err);
+      console.error("Cloud Action Error:", err);
     } finally {
       setTimeout(() => setIsSyncing(false), 800);
     }
+    return null;
+  };
+
+  const handleRemoteLogin = async (email: string, password: string) => {
+    const remoteUser = await syncToCloud('REMOTE_LOGIN', { email });
+    if (!remoteUser) return null;
+    const inputHash = await hashPassword(password);
+    if (remoteUser.password === inputHash || remoteUser.password === password) {
+      setUsers(prev => {
+         const exists = prev.find(u => u.id === remoteUser.id);
+         return exists ? prev : [...prev, remoteUser];
+      });
+      // Trigger a PULL for this company after login
+      const url = settings.cloud.scriptUrl || await fetchMasterConfig();
+      if (url) {
+        const response = await fetch(`${url}?action=SYNC_PULL&companyId=${remoteUser.companyId}`);
+        const result = await response.json();
+        if (result.status === 'success' && result.data) {
+          const d = result.data;
+          if (d.transactions) setTransactions(prev => [...prev.filter(t => t.companyId !== remoteUser.companyId), ...d.transactions]);
+          if (d.accounts) setAccounts(prev => [...prev.filter(a => a.companyId !== remoteUser.companyId), ...d.accounts]);
+          if (d.products) setProducts(prev => [...prev.filter(p => p.companyId !== remoteUser.companyId), ...d.products]);
+          if (d.entities) setEntities(prev => [...prev.filter(e => e.companyId !== remoteUser.companyId), ...d.entities]);
+          if (d.companies) setCompanies(prev => [...prev.filter(c => c.id !== remoteUser.companyId), ...d.companies]);
+          if (d.users) setUsers(prev => [...prev.filter(u => u.companyId !== remoteUser.companyId && u.id !== 'system-sa'), ...d.users]);
+        }
+      }
+      setCurrentUserId(remoteUser.id);
+      setIsLocked(false);
+      return remoteUser.id;
+    }
+    return null;
   };
 
   useEffect(() => {
@@ -248,7 +284,7 @@ const App: React.FC = () => {
       users={users} 
       onUnlock={(userId) => { setCurrentUserId(userId); setIsLocked(false); }} 
       onRegister={handleRegisterCompany} 
-      onRemoteLogin={async () => null}
+      onRemoteLogin={handleRemoteLogin}
       onBack={() => setIsLanding(true)} 
     />
   );
