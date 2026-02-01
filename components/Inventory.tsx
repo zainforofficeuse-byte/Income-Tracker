@@ -24,6 +24,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
     name: '', sku: '', purchasePrice: 0, sellingPrice: 0, stock: 0, minStock: 5, categories: [], imageUrl: undefined
   });
 
+  // POS Engine Auto-Calculation
   useEffect(() => {
     if (globalSettings.pricingRules.autoApply && newP.purchasePrice && newP.purchasePrice > 0) {
       const rules = globalSettings.pricingRules;
@@ -47,7 +48,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const response = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
-          contents: { parts: [{ inlineData: { data: base64Data, mimeType: file.type } }, { text: "Identify this product name accurately. Return ONLY the product title." }] }
+          contents: { parts: [{ inlineData: { data: base64Data, mimeType: file.type } }, { text: "Identify this product name accurately. Return ONLY the title." }] }
         });
         if (response.text) setNewP(prev => ({ ...prev, name: response.text.trim() }));
       } catch (err) { console.error(err); } finally { setIsScanning(false); }
@@ -61,7 +62,19 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
       setProducts(prev => prev.map(p => p.id === editingId ? { ...p, ...newP } as Product : p));
       setEditingId(null);
     } else {
-      const finalProduct: Product = { ...newP, id: crypto.randomUUID(), companyId: activeCompanyId, sku: newP.sku || `SKU-${Date.now().toString(36).toUpperCase()}`, categories: newP.categories || [], purchasePrice: newP.purchasePrice || 0, sellingPrice: newP.sellingPrice || 0, stock: newP.stock || 0, minStock: newP.minStock || 5, name: newP.name || 'Unnamed Product', imageUrl: newP.imageUrl } as Product;
+      const finalProduct: Product = { 
+        ...newP, 
+        id: crypto.randomUUID(), 
+        companyId: activeCompanyId, 
+        sku: newP.sku || `SKU-${Date.now().toString(36).toUpperCase()}`, 
+        categories: newP.categories || [], 
+        purchasePrice: newP.purchasePrice || 0, 
+        sellingPrice: newP.sellingPrice || 0, 
+        stock: newP.stock || 0, 
+        minStock: newP.minStock || 5, 
+        name: newP.name || 'Unnamed Product', 
+        imageUrl: newP.imageUrl 
+      } as Product;
       setProducts(prev => [...prev, finalProduct]);
     }
     setIsAdding(false);
@@ -79,38 +92,44 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
     <div className="space-y-6 animate-slide-up pb-32">
       <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow border border-black/[0.02] flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-black tracking-tightest">Inventory</h2>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Stock Management</p>
+          <h2 className="text-2xl font-black tracking-tightest text-slate-900 dark:text-white">Inventory</h2>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Global Stock Control</p>
         </div>
         {!isReadOnly && (
-            <button onClick={() => { setIsAdding(!isAdding); setEditingId(null); }} className={`h-12 w-12 rounded-2xl shadow-xl active-scale flex items-center justify-center ${isAdding ? 'bg-rose-500 text-white' : 'bg-indigo-600 text-white'}`}>
-            {isAdding ? '×' : <UI.Plus className="w-6 h-6" />}
+            <button onClick={() => { setIsAdding(!isAdding); setEditingId(null); setNewP({ name: '', sku: '', purchasePrice: 0, sellingPrice: 0, stock: 0, minStock: 5, categories: [], imageUrl: undefined }); }} className={`h-12 w-12 rounded-2xl shadow-xl active-scale flex items-center justify-center transition-all ${isAdding ? 'bg-rose-500 text-white rotate-45' : 'bg-emerald-600 text-white'}`}>
+              <UI.Plus className="w-6 h-6" />
             </button>
         )}
       </div>
 
       {isAdding && !isReadOnly && (
-        <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 premium-shadow border-2 border-indigo-500/10 space-y-6 animate-in zoom-in-95">
+        <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 premium-shadow border-2 border-emerald-500/10 space-y-8 animate-in zoom-in-95">
           <div className="flex flex-col items-center gap-4">
-             <div className="relative w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-[1.5rem] overflow-hidden">
-                {newP.imageUrl ? <img src={newP.imageUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><UI.Inventory className="w-8 h-8" /></div>}
+             <div className="relative w-32 h-32 bg-slate-100 dark:bg-slate-800 rounded-[2.5rem] overflow-hidden flex items-center justify-center border-4 border-white dark:border-slate-800 shadow-xl">
+                {newP.imageUrl ? <img src={newP.imageUrl} className="w-full h-full object-cover" /> : <UI.Inventory className="w-10 h-10 text-slate-300" />}
              </div>
-             <button type="button" onClick={() => fileInputRef.current?.click()} className="px-5 py-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-xl text-[9px] font-black uppercase active-scale">
-               {isScanning ? 'Scanning...' : 'AI Photo Scan'}
+             <button type="button" onClick={() => fileInputRef.current?.click()} className="px-6 py-3 bg-emerald-50 dark:bg-emerald-950 text-emerald-600 rounded-2xl text-[10px] font-black uppercase tracking-widest active-scale">
+               {isScanning ? 'AI Reading...' : 'Scan Product Metadata'}
              </button>
              <input type="file" accept="image/*" capture="environment" className="hidden" ref={fileInputRef} onChange={handleCapture} />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Product Name</label>
-            <input placeholder="Item title..." className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-bold text-sm border-none" value={newP.name} onChange={e => setNewP({...newP, name: e.target.value})} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Product Identity</label>
+              <input placeholder="Full Title" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-bold text-sm border-none text-slate-900 dark:text-white" value={newP.name} onChange={e => setNewP({...newP, name: e.target.value})} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Unique SKU Code</label>
+              <input placeholder="Manual or Auto" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-bold text-sm border-none text-slate-900 dark:text-white" value={newP.sku} onChange={e => setNewP({...newP, sku: e.target.value})} />
+            </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Inventory Tags (Global)</label>
-            <div className="flex flex-wrap gap-2 p-2">
+          <div className="space-y-2">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Category Assignment (Global Tags)</label>
+            <div className="flex flex-wrap gap-2 p-1">
                {globalSettings.inventoryCategories.map(tag => (
-                 <button key={tag} onClick={() => toggleCategory(tag)} className={`px-4 py-2 rounded-full text-[9px] font-black uppercase border transition-all ${newP.categories?.includes(tag) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-400 border-slate-100'}`}>
+                 <button key={tag} onClick={() => toggleCategory(tag)} className={`px-5 py-2.5 rounded-full text-[9px] font-black uppercase border-2 transition-all ${newP.categories?.includes(tag) ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-transparent text-slate-400 border-slate-100 dark:border-slate-800'}`}>
                    {tag}
                  </button>
                ))}
@@ -118,31 +137,62 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-             <div className="space-y-1"><label className="text-[9px] font-black text-slate-400 ml-3">Cost</label><input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none" value={newP.purchasePrice || ''} onChange={e => setNewP({...newP, purchasePrice: parseFloat(e.target.value) || 0})} /></div>
-             <div className="space-y-1"><label className="text-[9px] font-black text-slate-400 ml-3">Retail</label><input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none" value={newP.sellingPrice || ''} onChange={e => setNewP({...newP, sellingPrice: parseFloat(e.target.value) || 0})} /></div>
+             <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-slate-400 ml-3 uppercase">Total Quantity (Stock)</label>
+                <input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none text-slate-900 dark:text-white" value={newP.stock || ''} onChange={e => setNewP({...newP, stock: parseFloat(e.target.value) || 0})} />
+             </div>
+             <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-rose-500 ml-3 uppercase tracking-tighter">Low Stock Alert Level</label>
+                <input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none text-slate-900 dark:text-white" value={newP.minStock || ''} onChange={e => setNewP({...newP, minStock: parseFloat(e.target.value) || 0})} />
+             </div>
           </div>
 
-          <button onClick={saveProduct} className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase shadow-xl active-scale">{editingId ? 'Update' : 'Add Item'}</button>
+          <div className="grid grid-cols-2 gap-4">
+             <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-slate-400 ml-3 uppercase">Purchase Cost</label>
+                <input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none text-rose-500" value={newP.purchasePrice || ''} onChange={e => setNewP({...newP, purchasePrice: parseFloat(e.target.value) || 0})} />
+             </div>
+             <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-slate-400 ml-3 uppercase">Retail Value</label>
+                <input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm text-emerald-500 border-none" value={newP.sellingPrice || ''} onChange={e => setNewP({...newP, sellingPrice: parseFloat(e.target.value) || 0})} />
+             </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={saveProduct} className="flex-1 py-6 bg-emerald-600 text-white rounded-[2.5rem] font-black text-xs uppercase tracking-widest shadow-xl active-scale">
+              {editingId ? 'Update Master Record' : 'Authorize New Product'}
+            </button>
+            {editingId && (
+              <button onClick={() => { if(confirm('Purge from inventory?')) { setProducts(prev => prev.filter(p => p.id !== editingId)); setIsAdding(false); setEditingId(null); } }} className="px-8 bg-rose-50 dark:bg-rose-950/20 text-rose-500 rounded-[2.5rem] font-black text-[9px] uppercase active-scale">Delete</button>
+            )}
+          </div>
         </div>
       )}
 
+      {/* Product Feed */}
       <div className="grid grid-cols-1 gap-4">
         {products.map(p => (
-          <div key={p.id} className="bg-white dark:bg-slate-900 rounded-[2rem] p-5 premium-shadow border border-black/[0.01] flex items-center justify-between group active-scale" onClick={() => { if(!isReadOnly) { setNewP(p); setEditingId(p.id); setIsAdding(true); } }}>
-            <div className="flex items-center gap-4">
-               <div className="h-14 w-14 rounded-2xl bg-slate-50 dark:bg-slate-800 overflow-hidden flex items-center justify-center">
-                 {p.imageUrl ? <img src={p.imageUrl} className="w-full h-full object-cover" /> : <UI.Inventory className="w-7 h-7 text-indigo-500" />}
+          <div key={p.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow border border-black/[0.01] flex items-center justify-between group cursor-pointer active-scale transition-all" onClick={() => { if(!isReadOnly) { setNewP(p); setEditingId(p.id); setIsAdding(true); } }}>
+            <div className="flex items-center gap-5">
+               <div className="h-16 w-16 rounded-[1.5rem] bg-slate-50 dark:bg-slate-800 overflow-hidden flex items-center justify-center border border-black/5">
+                 {p.imageUrl ? <img src={p.imageUrl} className="w-full h-full object-cover" /> : <UI.Inventory className="w-7 h-7 text-emerald-600" />}
                </div>
                <div>
-                 <h4 className="font-black text-sm">{p.name}</h4>
-                 <div className="flex gap-1 mt-1">
-                   {p.categories.map(c => <span key={c} className="text-[7px] font-black bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 uppercase">{c}</span>)}
+                 <h4 className="font-black text-sm text-slate-900 dark:text-white">{p.name}</h4>
+                 <div className="flex items-center gap-2 mt-1.5">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{p.sku}</span>
+                    <div className="flex gap-1">
+                      {p.categories.map(c => <span key={c} className="text-[7px] font-black bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded text-emerald-600 uppercase tracking-tighter">{c}</span>)}
+                    </div>
                  </div>
                </div>
             </div>
             <div className="text-right">
-               <p className={`font-black text-base ${p.stock <= p.minStock ? 'text-rose-500' : 'text-slate-900 dark:text-white'}`}>{p.stock} Units</p>
-               <p className="text-[9px] font-black text-indigo-500">{currencySymbol}{p.sellingPrice.toLocaleString()}</p>
+               <div className="flex flex-col items-end">
+                  <span className={`text-xl font-black leading-none ${p.stock <= p.minStock ? 'text-rose-500' : 'text-slate-900 dark:text-white'}`}>{p.stock}</span>
+                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">In Stock</span>
+               </div>
+               <p className="text-[11px] font-black text-emerald-600 mt-2">{currencySymbol}{p.sellingPrice.toLocaleString()}</p>
             </div>
           </div>
         ))}

@@ -18,9 +18,10 @@ interface SettingsProps {
   onFetchCloud: () => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ settings, updateSettings, accounts, setAccounts, categories, setCategories, transactions, products, entities, onRemoveInventoryTag, onFetchCloud }) => {
+const Settings: React.FC<SettingsProps> = ({ settings, updateSettings, accounts, setAccounts, onRemoveInventoryTag, onFetchCloud }) => {
   const [isAddingAccount, setIsAddingAccount] = useState(false);
   const [newAcc, setNewAcc] = useState({ name: '', balance: 0 });
+  const [newTag, setNewTag] = useState('');
 
   const addAccount = () => {
     if (!newAcc.name) return;
@@ -30,121 +31,127 @@ const Settings: React.FC<SettingsProps> = ({ settings, updateSettings, accounts,
     setIsAddingAccount(false);
   };
 
-  const exportToCSV = (type: 'TRANSACTIONS' | 'INVENTORY' | 'PARTIES') => {
-    let dataToExport: any[] = [];
-    let filename = `TRACKR_Export_${type}_${new Date().toISOString().split('T')[0]}.csv`;
-
-    if (type === 'TRANSACTIONS') dataToExport = transactions;
-    else if (type === 'INVENTORY') dataToExport = products;
-    else if (type === 'PARTIES') dataToExport = entities;
-
-    if (dataToExport.length === 0) {
-      alert("No data found for this category.");
-      return;
+  const addGlobalTag = () => {
+    if (!newTag.trim()) return;
+    if (!settings.inventoryCategories.includes(newTag.trim())) {
+      updateSettings({ inventoryCategories: [...settings.inventoryCategories, newTag.trim()] });
     }
+    setNewTag('');
+  };
 
-    const headers = Object.keys(dataToExport[0]).join(',');
-    const rows = dataToExport.map(item => 
-      Object.values(item).map(val => 
-        typeof val === 'string' ? `"${val.replace(/"/g, '""')}"` : val
-      ).join(',')
-    ).join('\n');
-
-    const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + rows;
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const updatePricing = (key: keyof typeof settings.pricingRules, value: any) => {
+    updateSettings({
+      pricingRules: {
+        ...settings.pricingRules,
+        [key]: value
+      }
+    });
   };
 
   return (
-    <div className="space-y-10 animate-slide-up pb-32 max-w-2xl mx-auto">
-      <div className="px-2 flex justify-between items-center">
+    <div className="space-y-10 animate-slide-up pb-40 max-w-2xl mx-auto px-2">
+      <div className="flex justify-between items-center">
          <div>
-            <h2 className="text-3xl font-black tracking-tightest">Settings</h2>
+            <h2 className="text-3xl font-black tracking-tightest text-slate-900 dark:text-white">Settings</h2>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Enterprise Configuration</p>
          </div>
-         <div className="flex gap-2">
-            <button onClick={() => updateSettings({ darkMode: !settings.darkMode })} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl active-scale">
-               {settings.darkMode ? '☀️' : '🌙'}
-            </button>
-         </div>
+         <button onClick={() => updateSettings({ darkMode: !settings.darkMode })} className="p-4 bg-slate-100 dark:bg-slate-800 rounded-3xl active-scale transition-all text-slate-900 dark:text-white font-black text-[10px] uppercase">
+            {settings.darkMode ? '☀️ Light' : '🌙 Dark'}
+         </button>
       </div>
 
-      {/* Cloud Status Section */}
-      <section className="space-y-4 px-2">
-         <div className="bg-emerald-600 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl">
-            <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 blur-3xl rounded-full"></div>
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-               <div>
-                  <div className="flex items-center gap-2 mb-1">
-                     <div className={`h-1.5 w-1.5 rounded-full ${settings.cloud.isConnected ? 'bg-emerald-300' : 'bg-rose-400'} animate-pulse`}></div>
-                     <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-80">
-                        {settings.cloud.isConnected ? 'Google Cloud Linked' : 'Cloud Disconnected'}
-                     </p>
-                  </div>
-                  <h3 className="text-xl font-black">Sheets Real-time Sync</h3>
-               </div>
-               <button onClick={onFetchCloud} className="px-6 py-3 bg-white text-emerald-600 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl active-scale">
-                  Force Sync Now
-               </button>
+      {/* Advanced Pricing Engine */}
+      <section className="space-y-4">
+         <div className="flex items-center justify-between px-2">
+            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">POS Pricing Architecture</p>
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-bold text-slate-400 uppercase">Auto-Apply</span>
+              <button 
+                onClick={() => updatePricing('autoApply', !settings.pricingRules.autoApply)}
+                className={`w-12 h-6 rounded-full transition-all relative ${settings.pricingRules.autoApply ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settings.pricingRules.autoApply ? 'left-7' : 'left-1'}`} />
+              </button>
             </div>
          </div>
-      </section>
-
-      {/* Data Export Section */}
-      <section className="space-y-4 px-2">
-         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data Management & Portability</p>
          <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 premium-shadow border border-emerald-500/5 space-y-6">
-            <div className="flex items-start gap-4">
-               <div className="h-12 w-12 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <div className="grid grid-cols-2 gap-6">
+               <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Fixed Overhead ({settings.currency})</label>
+                  <input type="number" value={settings.pricingRules.fixedOverhead} onChange={e => updatePricing('fixedOverhead', parseFloat(e.target.value) || 0)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 text-sm font-black border-none text-slate-900 dark:text-white" />
                </div>
-               <div>
-                  <h4 className="text-sm font-black uppercase tracking-tight">Export Company Archive</h4>
-                  <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase">Download all ledger entries to Excel format</p>
+               <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Target Profit Margin %</label>
+                  <input type="number" value={settings.pricingRules.targetMarginPercent} onChange={e => updatePricing('targetMarginPercent', parseFloat(e.target.value) || 0)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 text-sm font-black border-none text-slate-900 dark:text-white" />
+               </div>
+               <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Variable OH %</label>
+                  <input type="number" value={settings.pricingRules.variableOverheadPercent} onChange={e => updatePricing('variableOverheadPercent', parseFloat(e.target.value) || 0)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 text-sm font-black border-none text-slate-900 dark:text-white" />
+               </div>
+               <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Platform Fee %</label>
+                  <input type="number" value={settings.pricingRules.platformFeePercent} onChange={e => updatePricing('platformFeePercent', parseFloat(e.target.value) || 0)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 text-sm font-black border-none text-slate-900 dark:text-white" />
                </div>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-               <button onClick={() => exportToCSV('TRANSACTIONS')} className="py-4 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 rounded-2xl text-[9px] font-black uppercase tracking-widest border border-emerald-500/10 active-scale">Transactions</button>
-               <button onClick={() => exportToCSV('INVENTORY')} className="py-4 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 rounded-2xl text-[9px] font-black uppercase tracking-widest border border-emerald-500/10 active-scale">Inventory</button>
-               <button onClick={() => exportToCSV('PARTIES')} className="py-4 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 rounded-2xl text-[9px] font-black uppercase tracking-widest border border-emerald-500/10 active-scale">Parties</button>
+            <div className="bg-emerald-50 dark:bg-emerald-950/30 p-4 rounded-2xl border border-emerald-500/10">
+               <p className="text-[8px] text-emerald-600 dark:text-emerald-400 font-black uppercase text-center tracking-widest leading-relaxed">
+                  Formula: Retail = (Cost + OH) / (1 - Fees% - Margin%)
+               </p>
             </div>
          </div>
       </section>
 
-      {/* Account Balances Section */}
-      <section className="space-y-4 px-2">
-        <div className="flex items-center justify-between">
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Accounts & Openings</p>
-           <button onClick={() => setIsAddingAccount(!isAddingAccount)} className="text-emerald-600 text-[9px] font-black uppercase tracking-widest">+ Add New Account</button>
+      {/* Global Inventory Tags */}
+      <section className="space-y-4">
+         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Global Stock Categories</p>
+         <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 premium-shadow border border-emerald-500/5 space-y-6">
+            <div className="flex gap-2">
+               <input 
+                 value={newTag} 
+                 onChange={e => setNewTag(e.target.value)} 
+                 placeholder="New tag (e.g. Imported)..." 
+                 className="flex-1 bg-slate-50 dark:bg-slate-800 rounded-2xl px-5 py-4 text-xs font-black border-none text-slate-900 dark:text-white"
+               />
+               <button onClick={addGlobalTag} className="px-8 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest active-scale">Add</button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+               {settings.inventoryCategories.map(tag => (
+                 <div key={tag} className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/40 px-4 py-2 rounded-full border border-emerald-500/10">
+                    <span className="text-[10px] font-black text-emerald-600 uppercase">{tag}</span>
+                    <button onClick={() => onRemoveInventoryTag(tag)} className="text-emerald-400 hover:text-rose-500 font-black text-sm px-1">×</button>
+                 </div>
+               ))}
+            </div>
+         </div>
+      </section>
+
+      {/* Account Management */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between px-2">
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Wallets & Accounts</p>
+           <button onClick={() => setIsAddingAccount(!isAddingAccount)} className="text-emerald-600 text-[10px] font-black uppercase tracking-widest">+ New Account</button>
         </div>
         {isAddingAccount && (
-          <div className="bg-emerald-50 dark:bg-emerald-900/10 p-6 rounded-[2rem] space-y-3 animate-in zoom-in-95">
-             <input value={newAcc.name} onChange={e => setNewAcc({...newAcc, name: e.target.value})} placeholder="Account Name (e.g. Bank Alfalah)" className="w-full bg-white dark:bg-slate-800 rounded-xl px-4 py-3 text-xs font-bold border-none" />
-             <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-bold opacity-30">{settings.currency}</span>
-                <input type="number" value={newAcc.balance} onChange={e => setNewAcc({...newAcc, balance: parseFloat(e.target.value) || 0})} placeholder="Opening Balance" className="w-full bg-white dark:bg-slate-800 rounded-xl pl-10 pr-4 py-3 text-xs font-bold border-none" />
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] premium-shadow border border-emerald-500/10 space-y-4 animate-in slide-in-from-top-4">
+             <input value={newAcc.name} onChange={e => setNewAcc({...newAcc, name: e.target.value})} placeholder="Account Title" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl px-5 py-4 font-bold border-none text-slate-900 dark:text-white" />
+             <input type="number" value={newAcc.balance} onChange={e => setNewAcc({...newAcc, balance: parseFloat(e.target.value) || 0})} placeholder="Opening Balance" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl px-5 py-4 font-bold border-none text-slate-900 dark:text-white" />
+             <div className="flex gap-2">
+                <button onClick={addAccount} className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest active-scale">Authorize Account</button>
+                <button onClick={() => setIsAddingAccount(false)} className="px-6 py-4 bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-2xl text-[10px] font-black uppercase">Cancel</button>
              </div>
-             <button onClick={addAccount} className="w-full bg-emerald-600 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active-scale">Save Account</button>
           </div>
         )}
-        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] overflow-hidden premium-shadow border border-black/[0.01]">
+        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] overflow-hidden premium-shadow">
           {accounts.map((acc, idx) => (
             <div key={acc.id} className={`flex items-center justify-between p-6 ${idx !== accounts.length - 1 ? 'border-b border-slate-50 dark:border-white/5' : ''}`}>
-               <span className="font-black text-sm">{acc.name}</span>
-               <span className="font-black text-xs text-emerald-600">{settings.currency} {acc.balance.toLocaleString()}</span>
+               <div className="flex flex-col">
+                  <span className="font-black text-sm text-slate-900 dark:text-white">{acc.name}</span>
+                  <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest">{acc.type} Ledger</span>
+               </div>
+               <span className="font-black text-sm text-emerald-600">{settings.currency} {acc.balance.toLocaleString()}</span>
             </div>
           ))}
         </div>
-      </section>
-
-      <section className="pt-8 px-2">
-         <button onClick={() => { if(confirm('Factory Reset?')) { localStorage.clear(); window.location.reload(); }}} className="w-full py-6 bg-rose-50 dark:bg-rose-900/10 rounded-[2.5rem] text-[9px] font-black text-rose-500 uppercase tracking-[0.4em]">Erase All System Data</button>
       </section>
     </div>
   );
