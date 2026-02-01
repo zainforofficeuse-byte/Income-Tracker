@@ -143,7 +143,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
 
   return (
     <div className="animate-slide-up w-full max-w-2xl mx-auto h-full flex flex-col pt-4 pb-40">
-      <form onSubmit={handleSubmit} className="space-y-6 w-full px-4">
+      <form onSubmit={handleSubmit} className="space-y-6 w-full px-4 no-print">
         
         {/* Toggle POS / Direct */}
         <div className="flex justify-center shrink-0">
@@ -286,13 +286,13 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
 
       {/* POS Receipt Modal */}
       {showReceipt && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 animate-in fade-in duration-300 no-print">
-          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-md" onClick={() => setShowReceipt(null)} />
-          <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-[3rem] p-8 shadow-2xl border border-white/20 animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
-            <div className="absolute top-0 left-0 right-0 h-2 bg-emerald-500"></div>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 animate-in fade-in duration-300">
+          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-md no-print" onClick={() => setShowReceipt(null)} />
+          <div id="receipt-print" className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-[3rem] p-8 shadow-2xl border border-white/20 animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+            <div className="absolute top-0 left-0 right-0 h-2 bg-emerald-500 no-print"></div>
             
             <div className="text-center mb-8">
-              <h2 className="text-2xl font-black tracking-tightest text-slate-900 dark:text-white">{settings.companyName.toUpperCase()}</h2>
+              <h2 className="text-2xl font-black tracking-tightest text-slate-900 dark:text-white uppercase">{settings.companyName}</h2>
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mt-1 italic">Authorized Sales Receipt</p>
             </div>
 
@@ -318,7 +318,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
                    {showReceipt.items.map((item, idx) => (
                      <div key={idx} className="flex justify-between items-start">
                         <div className="flex flex-col">
-                           <span className="text-[11px] font-black text-slate-900 dark:text-white uppercase">{item.name}</span>
+                           <span className="text-[11px] font-black text-slate-900 dark:text-white uppercase leading-tight">{item.name}</span>
                            <span className="text-[9px] text-slate-400 font-bold">{item.quantity} x {symbol}{item.price.toLocaleString()}</span>
                         </div>
                         <span className="text-[11px] font-black text-slate-900 dark:text-white">{symbol}{(item.quantity * item.price).toLocaleString()}</span>
@@ -338,7 +338,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
               </div>
             </div>
 
-            <div className="pt-8 flex flex-col gap-3">
+            <div className="pt-8 flex flex-col gap-3 no-print">
               <button onClick={handlePrint} className="w-full py-5 bg-slate-900 dark:bg-emerald-600 text-white rounded-[1.8rem] font-black text-[10px] uppercase tracking-widest active-scale shadow-xl shadow-emerald-500/20">
                 Print Official Receipt
               </button>
@@ -360,7 +360,20 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
           body * { visibility: hidden; }
           .no-print { display: none !important; }
           #receipt-print, #receipt-print * { visibility: visible; }
-          #receipt-print { position: fixed; left: 0; top: 0; width: 100%; height: 100%; margin: 0; padding: 20px; }
+          #receipt-print { 
+            position: fixed; 
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            height: 100%; 
+            margin: 0; 
+            padding: 40px;
+            background: white !important;
+            color: black !important;
+            box-shadow: none !important;
+            border: none !important;
+          }
+          #receipt-print div { color: black !important; border-color: #eee !important; background: transparent !important; }
         }
       `}</style>
     </div>
