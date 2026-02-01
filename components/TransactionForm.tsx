@@ -26,6 +26,16 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
   const [selectedProductId, setSelectedProductId] = useState('');
   const [qtyInput, setQtyInput] = useState('1');
 
+  // Receipt Modal State
+  const [showReceipt, setShowReceipt] = useState<{
+    id: string;
+    items: CartItem[];
+    total: number;
+    date: string;
+    paymentStatus: string;
+    entityName?: string;
+  } | null>(null);
+
   // Searchable Category Dropdown Logic
   const [isCatDropdownOpen, setIsCatDropdownOpen] = useState(false);
   const [catSearch, setCatSearch] = useState('');
@@ -89,7 +99,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
     const cartDetails = cart.map(i => `${i.name} (${i.quantity}x${i.price})`).join(', ');
     const finalNote = cart.length > 0 ? `${note ? note + ' | ' : ''}Cart: ${cartDetails}` : note;
 
+    const transactionId = crypto.randomUUID();
+    const entityName = entities.find(e => e.id === entityId)?.name;
+
     onAdd({
+      id: transactionId,
       amount: finalVal,
       type,
       category: isInventoryMode ? (type === TransactionType.INCOME ? 'Product Sales' : 'Inventory Purchase') : category,
@@ -103,10 +117,26 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
       date: new Date(date).toISOString(),
     });
 
+    // If POS mode, show receipt
+    if (isInventoryMode && cart.length > 0) {
+      setShowReceipt({
+        id: transactionId.slice(0, 8).toUpperCase(),
+        items: [...cart],
+        total: finalVal,
+        date: new Date().toLocaleString(),
+        paymentStatus,
+        entityName
+      });
+    }
+
     setAmount('');
     setNote('');
     setSelectedProductId('');
     setCart([]);
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   const symbol = CURRENCIES.find(c => c.code === settings.currency)?.symbol || 'Rs.';
@@ -148,7 +178,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
 
           <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 md:p-12 border border-black/5 dark:border-white/5 space-y-8 premium-shadow relative">
             
-            {/* Terminology Restored */}
             <div className="flex gap-4">
                <button type="button" onClick={() => setPaymentStatus('PAID')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${paymentStatus === 'PAID' ? 'bg-slate-900 dark:bg-emerald-600 border-slate-900 dark:border-emerald-600 text-white' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}>Paid</button>
                <button type="button" onClick={() => setPaymentStatus('CREDIT')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${paymentStatus === 'CREDIT' ? 'bg-slate-50 dark:bg-rose-900/10 border-slate-900 dark:border-rose-500/20 text-slate-900 dark:text-rose-500' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}>Credit</button>
@@ -250,10 +279,90 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
           </div>
 
           <button type="submit" className="w-full py-8 bg-emerald-600 text-white rounded-[2.5rem] font-black text-xs uppercase tracking-[0.4em] active-scale shadow-2xl shadow-emerald-500/20 transition-all hover:bg-emerald-700">
-            {cart.length > 0 ? `Finalize Batch (${cart.length} Units)` : 'Authorize Ledger Flow'}
+            {isInventoryMode && cart.length > 0 ? `Save Sale (${cart.length} Items)` : 'Authorize Ledger Flow'}
           </button>
         </div>
       </form>
+
+      {/* POS Receipt Modal */}
+      {showReceipt && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 animate-in fade-in duration-300 no-print">
+          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-md" onClick={() => setShowReceipt(null)} />
+          <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-[3rem] p-8 shadow-2xl border border-white/20 animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+            <div className="absolute top-0 left-0 right-0 h-2 bg-emerald-500"></div>
+            
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-black tracking-tightest text-slate-900 dark:text-white">{settings.companyName.toUpperCase()}</h2>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mt-1 italic">Authorized Sales Receipt</p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto no-scrollbar space-y-6">
+              <div className="flex justify-between items-center py-2 border-b border-dashed border-slate-100 dark:border-white/5">
+                <span className="text-[9px] font-black text-slate-400 uppercase">Inv Ref</span>
+                <span className="text-[10px] font-mono font-bold text-slate-900 dark:text-white">#{showReceipt.id}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-dashed border-slate-100 dark:border-white/5">
+                <span className="text-[9px] font-black text-slate-400 uppercase">Date</span>
+                <span className="text-[10px] font-bold text-slate-900 dark:text-white">{showReceipt.date}</span>
+              </div>
+              {showReceipt.entityName && (
+                <div className="flex justify-between items-center py-2 border-b border-dashed border-slate-100 dark:border-white/5">
+                  <span className="text-[9px] font-black text-slate-400 uppercase">Client</span>
+                  <span className="text-[10px] font-bold text-slate-900 dark:text-white truncate max-w-[120px]">{showReceipt.entityName}</span>
+                </div>
+              )}
+
+              <div className="py-4">
+                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Itemized Manifest</p>
+                 <div className="space-y-3">
+                   {showReceipt.items.map((item, idx) => (
+                     <div key={idx} className="flex justify-between items-start">
+                        <div className="flex flex-col">
+                           <span className="text-[11px] font-black text-slate-900 dark:text-white uppercase">{item.name}</span>
+                           <span className="text-[9px] text-slate-400 font-bold">{item.quantity} x {symbol}{item.price.toLocaleString()}</span>
+                        </div>
+                        <span className="text-[11px] font-black text-slate-900 dark:text-white">{symbol}{(item.quantity * item.price).toLocaleString()}</span>
+                     </div>
+                   ))}
+                 </div>
+              </div>
+
+              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-3xl p-6 text-center border border-black/5 dark:border-white/5">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Final Total Due</p>
+                <h4 className="text-4xl font-black text-emerald-600">
+                  {symbol}{showReceipt.total.toLocaleString()}
+                </h4>
+                <div className={`inline-block mt-3 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${showReceipt.paymentStatus === 'PAID' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
+                   {showReceipt.paymentStatus}
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-8 flex flex-col gap-3">
+              <button onClick={handlePrint} className="w-full py-5 bg-slate-900 dark:bg-emerald-600 text-white rounded-[1.8rem] font-black text-[10px] uppercase tracking-widest active-scale shadow-xl shadow-emerald-500/20">
+                Print Official Receipt
+              </button>
+              <button onClick={() => setShowReceipt(null)} className="w-full py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Initiate New Sale
+              </button>
+            </div>
+
+            <div className="mt-8 pt-6 border-t border-slate-50 dark:border-white/5 text-center">
+               <p className="text-[7px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-[0.5em]">Thank you for your business. TRACKR.</p>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Global CSS for printing */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          .no-print { display: none !important; }
+          #receipt-print, #receipt-print * { visibility: visible; }
+          #receipt-print { position: fixed; left: 0; top: 0; width: 100%; height: 100%; margin: 0; padding: 20px; }
+        }
+      `}</style>
     </div>
   );
 };

@@ -15,7 +15,7 @@ import ProfileModal from './components/ProfileModal';
 import LandingPage from './components/LandingPage';
 import UserManagement from './components/UserManagement';
 
-const STORAGE_KEY = 'trackr_enterprise_v23_stable';
+const STORAGE_KEY = 'trackr_enterprise_v25_stable';
 const MASTER_CONFIG_URL = 'https://raw.githubusercontent.com/zainforofficeuse-byte/config-file-income-tracker/refs/heads/main/config.txt'; 
 
 const hashPassword = async (password: string) => {
@@ -87,7 +87,6 @@ const App: React.FC = () => {
   const activeCompanyId = useMemo(() => currentUser?.companyId || 'SYSTEM', [currentUser]);
   const isSuper = currentUser?.role === UserRole.SUPER_ADMIN;
 
-  // Visual 3-Condition Indicator Status
   const cloudStatus = useMemo(() => ({
     isConfigured: !!settings.cloud.scriptUrl,
     isNetworkUp: isOnline,
@@ -108,7 +107,6 @@ const App: React.FC = () => {
       if (scriptUrlMatch) {
         const url = scriptUrlMatch[0];
         setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, scriptUrl: url, isConnected: true } }));
-        // Try a handshake to set server status
         fetch(url + '?action=PING').then(r => setLastCloudResponse(r.ok)).catch(() => setLastCloudResponse(false));
         return url;
       }
@@ -124,30 +122,44 @@ const App: React.FC = () => {
     setIsSyncing(true);
     try {
       if (action === 'PUSH') {
+        const body = {
+          action: 'SYNC_PUSH',
+          companyId: isSuper ? 'GLOBAL' : activeCompanyId,
+          data: { transactions, accounts, products, entities, users, companies, settings, categories }
+        };
         await fetch(url, {
           method: 'POST',
           mode: 'no-cors',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'SYNC_PUSH',
-            companyId: activeCompanyId,
-            data: { transactions, accounts, products, entities, users, companies, settings, categories }
-          })
+          body: JSON.stringify(body)
         });
         setLastCloudResponse(true);
       } else if (action === 'PULL') {
-        const response = await fetch(`${url}?action=SYNC_PULL&companyId=${activeCompanyId}`);
+        const queryId = isSuper ? 'GLOBAL' : activeCompanyId;
+        const response = await fetch(`${url}?action=SYNC_PULL&companyId=${queryId}`);
         const result = await response.json();
         setLastCloudResponse(true);
         if (result.status === 'success' && result.data) {
           const d = result.data;
-          if (d.transactions) setTransactions(prev => [...prev.filter(t => t.companyId !== activeCompanyId), ...d.transactions]);
-          if (d.accounts) setAccounts(prev => [...prev.filter(a => a.companyId !== activeCompanyId), ...d.accounts]);
-          if (d.products) setProducts(prev => [...prev.filter(p => p.companyId !== activeCompanyId), ...d.products]);
-          if (d.entities) setEntities(prev => [...prev.filter(e => e.companyId !== activeCompanyId), ...d.entities]);
-          if (d.companies) setCompanies(prev => [...prev.filter(c => c.id !== activeCompanyId), ...d.companies]);
-          if (d.users) setUsers(prev => [...prev.filter(u => u.companyId !== activeCompanyId && u.id !== 'system-sa'), ...d.users]);
-          if (d.categories) setCategories(d.categories);
+          if (isSuper) {
+            if (d.transactions) setTransactions(d.transactions);
+            if (d.accounts) setAccounts(d.accounts);
+            if (d.products) setProducts(d.products);
+            if (d.entities) setEntities(d.entities);
+            if (d.companies) setCompanies(d.companies);
+            if (d.users) setUsers(prev => {
+              const currentSA = prev.find(u => u.id === 'system-sa')!;
+              const remoteUsers = d.users.filter((u: User) => u.id !== 'system-sa');
+              return [currentSA, ...remoteUsers];
+            });
+            if (d.categories) setCategories(d.categories);
+          } else {
+            if (d.transactions) setTransactions(prev => [...prev.filter(t => t.companyId !== activeCompanyId), ...d.transactions]);
+            if (d.accounts) setAccounts(prev => [...prev.filter(a => a.companyId !== activeCompanyId), ...d.accounts]);
+            if (d.products) setProducts(prev => [...prev.filter(p => p.companyId !== activeCompanyId), ...d.products]);
+            if (d.entities) setEntities(prev => [...prev.filter(e => e.companyId !== activeCompanyId), ...d.entities]);
+            if (d.users) setUsers(prev => [...prev.filter(u => u.companyId !== activeCompanyId && u.id !== 'system-sa'), ...d.users]);
+          }
         }
       } else if (action === 'REMOTE_LOGIN') {
         const response = await fetch(`${url}?action=FIND_USER&email=${payload.email}`);
@@ -163,6 +175,21 @@ const App: React.FC = () => {
     }
     return null;
   };
+
+  // AUTOMATIC SYNC LOGIC FOR SUPER ADMIN
+  useEffect(() => {
+    let interval: any;
+    if (activeTab === 'admin' && isSuper && isOnline) {
+      // 1. Immediate Pull when opening Admin Tab
+      syncToCloud('PULL');
+      
+      // 2. Periodic background pull to check for naye users every 45 seconds
+      interval = setInterval(() => {
+        syncToCloud('PULL');
+      }, 45000);
+    }
+    return () => { if (interval) clearInterval(interval); };
+  }, [activeTab, isSuper, isOnline, settings.cloud.scriptUrl]);
 
   useEffect(() => {
     const init = async () => {
@@ -274,12 +301,10 @@ const App: React.FC = () => {
 
   return (
     <div className="h-screen w-full text-slate-900 dark:text-white max-w-6xl mx-auto relative overflow-hidden flex flex-col md:flex-row bg-white dark:bg-[#030712]">
-      {/* Sidebar (Desktop) */}
       <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-black border-r border-emerald-500/5 p-8 z-50">
           <div className="mb-10 flex flex-col gap-4">
             <h1 className="text-2xl font-black tracking-tightest">TRACKR<span className="text-emerald-500">.</span></h1>
             
-            {/* 3-Condition Detailed Monitor */}
             <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-3xl border border-black/5 flex flex-col gap-2">
                <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-1">Architecture Status</p>
                <div className="flex items-center gap-2">
@@ -332,7 +357,7 @@ const App: React.FC = () => {
             {activeTab === 'reports' && <Reports transactions={companyTransactions} products={companyProducts} entities={companyEntities} accounts={companyAccounts} currencySymbol={currencySymbol} />}
             {activeTab === 'users' && <UserManagement users={companyUsers} setUsers={setUsers} currentUserRole={currentUser?.role || UserRole.STAFF} />}
             {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} transactions={companyTransactions} products={companyProducts} entities={companyEntities} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={(tag) => setSettings(p => ({...p, inventoryCategories: p.inventoryCategories.filter(t => t !== tag)}))} onFetchCloud={() => syncToCloud('PULL')} cloudStatus={cloudStatus} />}
-            {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} setUsers={setUsers} onRegister={handleRegisterCompany} onUpdateCompany={() => {}} transactions={transactions} accounts={accounts} settings={settings} isOnline={isOnline} onTriggerBackup={() => syncToCloud('PUSH')} />}
+            {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} setUsers={setUsers} setCompanies={setCompanies} onRegister={handleRegisterCompany} onUpdateCompany={() => {}} transactions={transactions} accounts={accounts} settings={settings} isOnline={isOnline} onTriggerBackup={() => syncToCloud('PUSH')} onGlobalRefresh={() => syncToCloud('PULL')} isSyncing={isSyncing} />}
         </main>
       </div>
 
