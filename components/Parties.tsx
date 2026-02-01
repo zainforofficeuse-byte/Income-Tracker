@@ -43,7 +43,7 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
 
   return (
     <div className="space-y-8 animate-slide-up">
-      {/* Summary Cards */}
+      {/* Summary Analytics */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-emerald-50 dark:bg-emerald-900/10 p-6 rounded-[2.5rem] border border-emerald-100 dark:border-emerald-500/20 flex flex-col items-center">
           <p className="text-[8px] font-black text-emerald-600 uppercase mb-1 tracking-widest">Receivables</p>
@@ -55,17 +55,15 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
         </div>
       </div>
 
-      {/* Filter Tabs */}
+      {/* Toggle View */}
       <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl">
          <button onClick={() => setFilterType('CLIENT')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${filterType === 'CLIENT' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-400'}`}>Customers</button>
          <button onClick={() => setFilterType('VENDOR')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${filterType === 'VENDOR' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-400'}`}>Vendors</button>
       </div>
 
-      {/* Header with Add Button */}
+      {/* Header */}
       <div className="flex items-center justify-between px-2">
-          <div>
-            <h3 className="text-sm font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{filterType} Ledger</h3>
-          </div>
+          <h3 className="text-sm font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{filterType === 'CLIENT' ? 'Customer' : 'Vendor'} Ledger</h3>
           {!isReadOnly && (
               <button onClick={() => setIsAdding(!isAdding)} className={`h-10 w-10 text-white rounded-xl flex items-center justify-center shadow-lg active-scale transition-all ${isAdding ? 'bg-rose-500 rotate-45' : 'bg-indigo-600'}`}>
                 <Icons.Add className="w-5 h-5" />
@@ -73,17 +71,17 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
           )}
       </div>
 
-      {/* Add Entity Form - Restored Opening Balance & Phone */}
+      {/* Entry Form */}
       {isAdding && !isReadOnly && (
         <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] premium-shadow border-2 border-indigo-500/10 space-y-6 animate-in zoom-in-95 duration-300">
            <div className="space-y-4">
              <div className="space-y-1.5">
-               <label className="text-[9px] font-black text-indigo-600 uppercase tracking-widest ml-3">Entity Full Name</label>
+               <label className="text-[9px] font-black text-indigo-600 uppercase tracking-widest ml-3">{filterType === 'CLIENT' ? 'Customer' : 'Vendor'} Name</label>
                <input 
                 value={newEnt.name} 
                 onChange={e => setNewEnt({...newEnt, name: e.target.value})} 
                 className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none text-slate-900 dark:text-white" 
-                placeholder="e.g. Azeem Traders Ltd" 
+                placeholder="Full Legal Name" 
                />
              </div>
              <div className="grid grid-cols-2 gap-4">
@@ -115,7 +113,7 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
         </div>
       )}
 
-      {/* Entities List */}
+      {/* Entity List */}
       <div className="space-y-3">
         {entities.filter(e => e.type === filterType).map(ent => (
           <button 
@@ -129,7 +127,7 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
                </div>
                <div>
                  <h4 className="font-black text-sm text-slate-900 dark:text-white">{ent.name}</h4>
-                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{ent.phone || 'No Contact Data'}</p>
+                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{ent.phone || 'No Contact Record'}</p>
                </div>
             </div>
             <div className="text-right">
@@ -147,7 +145,7 @@ const Parties: React.FC<PartiesProps> = ({ entities, setEntities, currencySymbol
         )}
       </div>
 
-      {/* Entity Statement Modal */}
+      {/* Statement Modal */}
       {selectedEntityId && selectedEntity && (
         <div className="fixed inset-0 z-[100] flex flex-col p-6 animate-in fade-in duration-300">
            <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-xl" onClick={() => setSelectedEntityId(null)} />

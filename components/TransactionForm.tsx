@@ -106,7 +106,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
     <div className="animate-slide-up w-full max-w-2xl mx-auto h-full flex flex-col pt-4 pb-40">
       <form onSubmit={handleSubmit} className="space-y-6 w-full px-4">
         
-        {/* Toggle Mode */}
+        {/* Entry Selection */}
         <div className="flex justify-center shrink-0">
           <div className="bg-emerald-50 dark:bg-emerald-950/30 p-1.5 rounded-[1.8rem] flex gap-1 border border-emerald-500/10 backdrop-blur-sm">
             <button type="button" onClick={() => { setIsInventoryMode(false); setCart([]); }} className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${!isInventoryMode ? 'bg-white dark:bg-emerald-600 shadow-xl text-emerald-600 dark:text-white' : 'text-slate-400'}`}>Direct Entry</button>
@@ -116,7 +116,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
 
         {/* Amount Display */}
         <div className="text-center px-6 shrink-0 py-12 bg-white dark:bg-slate-900 rounded-[3.5rem] border border-black/5 dark:border-white/5 relative overflow-hidden premium-shadow">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 block">Calculated Master Total</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 block">Transaction Value</label>
           <div className="flex items-center justify-center gap-2 w-full relative">
              <span className="text-3xl font-black text-emerald-600 dark:text-emerald-500 opacity-30">{symbol}</span>
              <input 
@@ -130,18 +130,18 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
           </div>
         </div>
 
-        {/* Transaction Details */}
+        {/* Transaction Flow */}
         <div className="space-y-6">
           <div className="flex bg-slate-100 dark:bg-slate-900 p-1.5 rounded-3xl border border-black/5 dark:border-white/5">
-            <button type="button" onClick={() => setType(TransactionType.INCOME)} className={`flex-1 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${type === TransactionType.INCOME ? 'bg-emerald-600 text-white shadow-xl' : 'text-slate-400'}`}>Inbound Revenue</button>
-            <button type="button" onClick={() => setType(TransactionType.EXPENSE)} className={`flex-1 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${type === TransactionType.EXPENSE ? 'bg-rose-500 text-white shadow-xl' : 'text-slate-400'}`}>Outbound Costs</button>
+            <button type="button" onClick={() => setType(TransactionType.INCOME)} className={`flex-1 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${type === TransactionType.INCOME ? 'bg-emerald-600 text-white shadow-xl' : 'text-slate-400'}`}>Income</button>
+            <button type="button" onClick={() => setType(TransactionType.EXPENSE)} className={`flex-1 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${type === TransactionType.EXPENSE ? 'bg-rose-500 text-white shadow-xl' : 'text-slate-400'}`}>Expense</button>
           </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 md:p-12 border border-black/5 dark:border-white/5 space-y-8 premium-shadow">
             
             <div className="flex gap-4">
-               <button type="button" onClick={() => setPaymentStatus('PAID')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${paymentStatus === 'PAID' ? 'bg-slate-900 dark:bg-emerald-600 border-slate-900 dark:border-emerald-600 text-white' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}>Settled / Paid</button>
-               <button type="button" onClick={() => setPaymentStatus('CREDIT')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${paymentStatus === 'CREDIT' ? 'bg-slate-50 dark:bg-rose-900/10 border-slate-900 dark:border-rose-500/20 text-slate-900 dark:text-rose-500' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}>Accrued / Credit</button>
+               <button type="button" onClick={() => setPaymentStatus('PAID')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${paymentStatus === 'PAID' ? 'bg-slate-900 dark:bg-emerald-600 border-slate-900 dark:border-emerald-600 text-white' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}>Paid</button>
+               <button type="button" onClick={() => setPaymentStatus('CREDIT')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${paymentStatus === 'CREDIT' ? 'bg-slate-50 dark:bg-rose-900/10 border-slate-900 dark:border-rose-500/20 text-slate-900 dark:text-rose-500' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}>Credit</button>
             </div>
 
             {isInventoryMode && (
@@ -176,13 +176,13 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5 p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-black/5 dark:border-white/5">
-                <label className="text-[8px] font-black text-emerald-600 uppercase tracking-widest block mb-1">Authorization Date</label>
+                <label className="text-[8px] font-black text-emerald-600 uppercase tracking-widest block mb-1">Date</label>
                 <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-transparent font-black text-sm border-none p-0 text-slate-900 dark:text-white" />
               </div>
 
               {!isInventoryMode && (
                 <div className="space-y-1.5 p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-black/5 dark:border-white/5">
-                  <label className="text-[8px] font-black text-emerald-600 uppercase tracking-widest block mb-1">Ledger Category</label>
+                  <label className="text-[8px] font-black text-emerald-600 uppercase tracking-widest block mb-1">Category (Dropdown)</label>
                   <select value={category} onChange={e => setCategory(e.target.value)} className="w-full bg-transparent font-black text-sm border-none p-0 uppercase text-slate-900 dark:text-white appearance-none">
                     {categories[type].map(cat => <option key={cat} value={cat}>{cat}</option>)}
                   </select>
@@ -190,22 +190,31 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ accounts, products, e
               )}
 
               <div className="space-y-1.5 p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-black/5 dark:border-white/5 md:col-span-2">
-                <label className="text-[8px] font-black text-emerald-600 uppercase tracking-widest block mb-1">Registered Counterparty</label>
+                <label className="text-[8px] font-black text-emerald-600 uppercase tracking-widest block mb-1">Counterparty</label>
                 <select value={entityId} onChange={e => setEntityId(e.target.value)} className="w-full bg-transparent font-black text-sm border-none p-0 text-slate-900 dark:text-white appearance-none">
-                  <option value="">GENERAL MARKET COUNTERPARTY</option>
+                  <option value="">MARKET COUNTERPARTY</option>
                   {entities.filter(e => type === TransactionType.INCOME ? e.type === 'CLIENT' : e.type === 'VENDOR').map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
                 </select>
               </div>
+
+              {paymentStatus === 'PAID' && (
+                <div className="space-y-1.5 p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-black/5 dark:border-white/5 md:col-span-2">
+                  <label className="text-[8px] font-black text-emerald-600 uppercase tracking-widest block mb-1">Source Account</label>
+                  <select value={accountId} onChange={e => setAccountId(e.target.value)} className="w-full bg-transparent font-black text-sm border-none p-0 text-slate-900 dark:text-white appearance-none">
+                    {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name} ({symbol}{acc.balance.toLocaleString()})</option>)}
+                  </select>
+                </div>
+              )}
               
               <div className="space-y-1.5 p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-black/5 dark:border-white/5 md:col-span-2">
-                 <label className="text-[8px] font-black text-emerald-600 uppercase tracking-widest block mb-1">Transaction Metadata / Context</label>
-                 <input value={note} onChange={e => setNote(e.target.value)} className="w-full bg-transparent font-black text-sm border-none p-0 text-slate-900 dark:text-white" placeholder="Specific notes or remarks..." />
+                 <label className="text-[8px] font-black text-emerald-600 uppercase tracking-widest block mb-1">Notes</label>
+                 <input value={note} onChange={e => setNote(e.target.value)} className="w-full bg-transparent font-black text-sm border-none p-0 text-slate-900 dark:text-white" placeholder="Specific notes..." />
               </div>
             </div>
           </div>
 
           <button type="submit" className="w-full py-8 bg-emerald-600 text-white rounded-[2.5rem] font-black text-xs uppercase tracking-[0.4em] active-scale shadow-2xl shadow-emerald-500/20 transition-all hover:bg-emerald-700">
-            {cart.length > 0 ? `Finalize Batch (${cart.length} Units)` : 'Authorize Ledger Flow'}
+            {cart.length > 0 ? `Finalize Batch (${cart.length} Items)` : 'Finalize Transaction'}
           </button>
         </div>
       </form>

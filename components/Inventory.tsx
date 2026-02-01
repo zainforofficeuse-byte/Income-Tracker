@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Product, UserSettings } from '../types';
 import { Icons as UI } from '../constants';
 import { GoogleGenAI } from "@google/genai";
@@ -18,6 +18,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [tagSearch, setTagSearch] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [newP, setNewP] = useState<Partial<Product>>({ 
@@ -88,6 +89,11 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
     else setNewP({ ...newP, categories: [...current, tag] });
   };
 
+  // Added useMemo to React imports
+  const filteredTags = useMemo(() => {
+    return globalSettings.inventoryCategories.filter(t => t.toLowerCase().includes(tagSearch.toLowerCase()));
+  }, [globalSettings.inventoryCategories, tagSearch]);
+
   return (
     <div className="space-y-6 animate-slide-up pb-32">
       <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow border border-black/[0.02] flex items-center justify-between">
@@ -109,26 +115,33 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
                 {newP.imageUrl ? <img src={newP.imageUrl} className="w-full h-full object-cover" /> : <UI.Inventory className="w-10 h-10 text-slate-300" />}
              </div>
              <button type="button" onClick={() => fileInputRef.current?.click()} className="px-6 py-3 bg-emerald-50 dark:bg-emerald-950 text-emerald-600 rounded-2xl text-[10px] font-black uppercase tracking-widest active-scale">
-               {isScanning ? 'AI Reading...' : 'Scan Product Metadata'}
+               {isScanning ? 'AI Reading...' : 'Scan Metadata'}
              </button>
              <input type="file" accept="image/*" capture="environment" className="hidden" ref={fileInputRef} onChange={handleCapture} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Product Identity</label>
-              <input placeholder="Full Title" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-bold text-sm border-none text-slate-900 dark:text-white" value={newP.name} onChange={e => setNewP({...newP, name: e.target.value})} />
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Product Title</label>
+              <input placeholder="Item Name" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-bold text-sm border-none text-slate-900 dark:text-white" value={newP.name} onChange={e => setNewP({...newP, name: e.target.value})} />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Unique SKU Code</label>
-              <input placeholder="Manual or Auto" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-bold text-sm border-none text-slate-900 dark:text-white" value={newP.sku} onChange={e => setNewP({...newP, sku: e.target.value})} />
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">SKU Code</label>
+              <input placeholder="Unique Code" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-bold text-sm border-none text-slate-900 dark:text-white" value={newP.sku} onChange={e => setNewP({...newP, sku: e.target.value})} />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Category Assignment (Global Tags)</label>
-            <div className="flex flex-wrap gap-2 p-1">
-               {globalSettings.inventoryCategories.map(tag => (
+          <div className="space-y-4">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Categories (Searchable)</label>
+            <input 
+              type="text" 
+              placeholder="Search or filter tags..." 
+              value={tagSearch} 
+              onChange={e => setTagSearch(e.target.value)}
+              className="w-full bg-slate-100 dark:bg-slate-800 rounded-2xl p-3 text-xs font-black border-none"
+            />
+            <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto no-scrollbar p-1">
+               {filteredTags.map(tag => (
                  <button key={tag} onClick={() => toggleCategory(tag)} className={`px-5 py-2.5 rounded-full text-[9px] font-black uppercase border-2 transition-all ${newP.categories?.includes(tag) ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-transparent text-slate-400 border-slate-100 dark:border-slate-800'}`}>
                    {tag}
                  </button>
@@ -138,11 +151,11 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
 
           <div className="grid grid-cols-2 gap-4">
              <div className="space-y-1.5">
-                <label className="text-[9px] font-black text-slate-400 ml-3 uppercase">Total Quantity (Stock)</label>
+                <label className="text-[9px] font-black text-slate-400 ml-3 uppercase">Stock Quantity</label>
                 <input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none text-slate-900 dark:text-white" value={newP.stock || ''} onChange={e => setNewP({...newP, stock: parseFloat(e.target.value) || 0})} />
              </div>
              <div className="space-y-1.5">
-                <label className="text-[9px] font-black text-rose-500 ml-3 uppercase tracking-tighter">Low Stock Alert Level</label>
+                <label className="text-[9px] font-black text-rose-500 ml-3 uppercase tracking-tighter">Min Stock Alert</label>
                 <input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none text-slate-900 dark:text-white" value={newP.minStock || ''} onChange={e => setNewP({...newP, minStock: parseFloat(e.target.value) || 0})} />
              </div>
           </div>
@@ -153,14 +166,14 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
                 <input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm border-none text-rose-500" value={newP.purchasePrice || ''} onChange={e => setNewP({...newP, purchasePrice: parseFloat(e.target.value) || 0})} />
              </div>
              <div className="space-y-1.5">
-                <label className="text-[9px] font-black text-slate-400 ml-3 uppercase">Retail Value</label>
+                <label className="text-[9px] font-black text-slate-400 ml-3 uppercase">Selling Price</label>
                 <input type="number" className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl py-4 px-6 font-black text-sm text-emerald-500 border-none" value={newP.sellingPrice || ''} onChange={e => setNewP({...newP, sellingPrice: parseFloat(e.target.value) || 0})} />
              </div>
           </div>
 
           <div className="flex gap-2">
             <button onClick={saveProduct} className="flex-1 py-6 bg-emerald-600 text-white rounded-[2.5rem] font-black text-xs uppercase tracking-widest shadow-xl active-scale">
-              {editingId ? 'Update Master Record' : 'Authorize New Product'}
+              {editingId ? 'Update Record' : 'Add to Inventory'}
             </button>
             {editingId && (
               <button onClick={() => { if(confirm('Purge from inventory?')) { setProducts(prev => prev.filter(p => p.id !== editingId)); setIsAdding(false); setEditingId(null); } }} className="px-8 bg-rose-50 dark:bg-rose-950/20 text-rose-500 rounded-[2.5rem] font-black text-[9px] uppercase active-scale">Delete</button>
@@ -169,7 +182,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
         </div>
       )}
 
-      {/* Product Feed */}
+      {/* Product List */}
       <div className="grid grid-cols-1 gap-4">
         {products.map(p => (
           <div key={p.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow border border-black/[0.01] flex items-center justify-between group cursor-pointer active-scale transition-all" onClick={() => { if(!isReadOnly) { setNewP(p); setEditingId(p.id); setIsAdding(true); } }}>
@@ -182,7 +195,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, setProducts, currencySy
                  <div className="flex items-center gap-2 mt-1.5">
                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{p.sku}</span>
                     <div className="flex gap-1">
-                      {p.categories.map(c => <span key={c} className="text-[7px] font-black bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded text-emerald-600 uppercase tracking-tighter">{c}</span>)}
+                      {p.categories.slice(0, 2).map(c => <span key={c} className="text-[7px] font-black bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded text-emerald-600 uppercase tracking-tighter">{c}</span>)}
+                      {p.categories.length > 2 && <span className="text-[7px] font-black bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-400 uppercase tracking-tighter">+{p.categories.length - 2}</span>}
                     </div>
                  </div>
                </div>

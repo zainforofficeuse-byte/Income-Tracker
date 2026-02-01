@@ -15,7 +15,7 @@ import ProfileModal from './components/ProfileModal';
 import LandingPage from './components/LandingPage';
 import UserManagement from './components/UserManagement';
 
-const STORAGE_KEY = 'trackr_enterprise_v16_stable';
+const STORAGE_KEY = 'trackr_enterprise_v18_final';
 const MASTER_CONFIG_URL = 'https://raw.githubusercontent.com/zainforofficeuse-byte/config-file-income-tracker/refs/heads/main/config.txt'; 
 
 const hashPassword = async (password: string) => {
@@ -107,10 +107,10 @@ const App: React.FC = () => {
     return null;
   };
 
-  const syncToCloud = async (action: 'PUSH' | 'PULL' | 'TRIGGER_BACKUP' | 'REMOTE_LOGIN', payload?: any) => {
+  const syncToCloud = async (action: 'PUSH' | 'PULL') => {
     let url = settings.cloud.scriptUrl;
     if (!url) url = await fetchMasterConfig() || '';
-    if (!url || !isOnline) return null;
+    if (!url || !isOnline) return;
     
     setIsSyncing(true);
     try {
@@ -137,49 +137,12 @@ const App: React.FC = () => {
           if (d.companies) setCompanies(prev => [...prev.filter(c => c.id !== activeCompanyId), ...d.companies]);
           if (d.users) setUsers(prev => [...prev.filter(u => u.companyId !== activeCompanyId && u.id !== 'system-sa'), ...d.users]);
         }
-      } else if (action === 'REMOTE_LOGIN') {
-        const response = await fetch(`${url}?action=FIND_USER&email=${payload.email}`);
-        const result = await response.json();
-        return result.status === 'success' ? result.user : null;
       }
-      setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, isConnected: true } }));
     } catch (err) {
       console.error("Cloud Error:", err);
-      setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, isConnected: false } }));
     } finally {
       setTimeout(() => setIsSyncing(false), 800);
     }
-    return null;
-  };
-
-  const handleRemoteLogin = async (email: string, password: string) => {
-    const remoteUser = await syncToCloud('REMOTE_LOGIN', { email });
-    if (!remoteUser) return null;
-    const inputHash = await hashPassword(password);
-    if (remoteUser.password === inputHash || remoteUser.password === password) {
-      setUsers(prev => {
-         const exists = prev.find(u => u.id === remoteUser.id);
-         return exists ? prev : [...prev, remoteUser];
-      });
-      const url = settings.cloud.scriptUrl || await fetchMasterConfig();
-      if (url) {
-        const response = await fetch(`${url}?action=SYNC_PULL&companyId=${remoteUser.companyId}`);
-        const result = await response.json();
-        if (result.status === 'success' && result.data) {
-          const d = result.data;
-          if (d.transactions) setTransactions(prev => [...prev.filter(t => t.companyId !== remoteUser.companyId), ...d.transactions]);
-          if (d.accounts) setAccounts(prev => [...prev.filter(a => a.companyId !== remoteUser.companyId), ...d.accounts]);
-          if (d.products) setProducts(prev => [...prev.filter(p => p.companyId !== remoteUser.companyId), ...d.products]);
-          if (d.entities) setEntities(prev => [...prev.filter(e => e.companyId !== remoteUser.companyId), ...d.entities]);
-          if (d.companies) setCompanies(prev => [...prev.filter(c => c.id !== remoteUser.companyId), ...d.companies]);
-          if (d.users) setUsers(prev => [...prev.filter(u => u.companyId !== remoteUser.companyId && u.id !== 'system-sa'), ...d.users]);
-        }
-      }
-      setCurrentUserId(remoteUser.id);
-      setIsLocked(false);
-      return remoteUser.id;
-    }
-    return null;
   };
 
   useEffect(() => {
@@ -189,7 +152,7 @@ const App: React.FC = () => {
         if (saved) {
           const p = JSON.parse(saved);
           if (p.companies) setCompanies(p.companies);
-          if (p.users && p.users.length > 0) setUsers(p.users);
+          if (p.users) setUsers(p.users);
           if (p.transactions) setTransactions(p.transactions);
           if (p.accounts) setAccounts(p.accounts);
           if (p.products) setProducts(p.products);
@@ -198,13 +161,11 @@ const App: React.FC = () => {
           if (p.currentUserId) setCurrentUserId(p.currentUserId);
           if (p.isLocked !== undefined) setIsLocked(p.isLocked);
           if (p.isLanding !== undefined) setIsLanding(p.isLanding);
-          if (p.settings) {
-            setSettings(prev => ({ ...prev, ...p.settings, cloud: { ...prev.cloud, ...(p.settings.cloud || prev.cloud) } }));
-          }
+          if (p.settings) setSettings(prev => ({ ...prev, ...p.settings }));
         }
         await fetchMasterConfig();
       } catch (err) {
-        console.error("Initialization Error:", err);
+        console.error("Initialization error:", err);
       } finally {
         setIsInitialized(true);
       }
@@ -224,7 +185,7 @@ const App: React.FC = () => {
           syncToCloud('PUSH');
         }
       } catch (err) {
-        console.warn("Storage Full or Serialization Error. Data might not persist locally if size exceeds 5MB.", err);
+        console.warn("Storage quota exceeded. Data may not save locally.", err);
       }
     }
     if (settings.darkMode) document.documentElement.classList.add('dark');
@@ -287,7 +248,7 @@ const App: React.FC = () => {
       users={users} 
       onUnlock={(userId) => { setCurrentUserId(userId); setIsLocked(false); }} 
       onRegister={handleRegisterCompany} 
-      onRemoteLogin={handleRemoteLogin}
+      onRemoteLogin={async () => null}
       onBack={() => setIsLanding(true)} 
     />
   );
@@ -344,7 +305,7 @@ const App: React.FC = () => {
             {activeTab === 'reports' && <Reports transactions={companyTransactions} products={companyProducts} entities={companyEntities} accounts={companyAccounts} currencySymbol={currencySymbol} />}
             {activeTab === 'users' && <UserManagement users={companyUsers} setUsers={setUsers} currentUserRole={currentUser?.role || UserRole.STAFF} isReadOnly={isSuspended && !isSuper} />}
             {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => !isSuspended && setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} transactions={companyTransactions} products={companyProducts} entities={companyEntities} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={(tag) => setSettings(p => ({...p, inventoryCategories: p.inventoryCategories.filter(t => t !== tag)}))} onFetchCloud={() => syncToCloud('PULL')} />}
-            {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} onRegister={handleRegisterCompany} onUpdateCompany={handleUpdateCompany} transactions={transactions} accounts={accounts} settings={settings} isOnline={isOnline} onTriggerBackup={() => syncToCloud('TRIGGER_BACKUP')} />}
+            {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} onRegister={handleRegisterCompany} onUpdateCompany={handleUpdateCompany} transactions={transactions} accounts={accounts} settings={settings} isOnline={isOnline} onTriggerBackup={() => syncToCloud('PUSH')} />}
         </main>
       </div>
 
