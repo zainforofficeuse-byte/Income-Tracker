@@ -285,16 +285,18 @@ const App: React.FC = () => {
     />
   );
 
+  const menuTabs = (isSuper ? ['admin', 'dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings'] : ['dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings']);
+
   return (
     <div className="h-screen w-full text-slate-900 dark:text-white max-w-6xl mx-auto relative overflow-hidden flex flex-col md:flex-row bg-white dark:bg-[#030712]">
-      {/* Sidebar */}
+      {/* Sidebar (Desktop) */}
       <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-black border-r border-emerald-500/5 p-8 z-50">
           <div className="mb-10 flex flex-col gap-4">
             <h1 className="text-2xl font-black tracking-tightest">TRACKR<span className="text-emerald-500">.</span></h1>
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">{currentUser?.name}</p>
           </div>
           <nav className="flex-1 space-y-2 overflow-y-auto no-scrollbar">
-            {(isSuper ? ['admin', 'dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings'] : ['dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings']).map(t => (
+            {menuTabs.map(t => (
                <button key={t} onClick={() => setActiveTab(t as Tab)} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20 dark:bg-emerald-500' : 'text-slate-400 hover:bg-emerald-50/50 dark:hover:bg-white/5'}`}>
                   {React.createElement((Icons as any)[t.charAt(0).toUpperCase() + t.slice(1)] || Icons.Dashboard, { className: 'w-4 h-4' })}
                   {t}
@@ -308,6 +310,12 @@ const App: React.FC = () => {
       </aside>
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
+        {/* Mobile Header */}
+        <header className="px-6 pt-8 pb-4 flex justify-between items-center md:hidden z-40 bg-white/80 dark:bg-black/80 backdrop-blur-lg border-b border-emerald-500/5">
+           <h1 className="text-xl font-black tracking-tightest">TRACKR<span className="text-emerald-500">.</span></h1>
+           <button onClick={() => setIsProfileOpen(true)} className="h-10 w-10 rounded-full bg-emerald-50 dark:bg-slate-800 flex items-center justify-center font-black text-emerald-600 border border-emerald-500/10">{currentUser?.name[0]}</button>
+        </header>
+
         <main className="flex-1 overflow-y-auto no-scrollbar px-6 md:px-12 py-8 pb-40">
             {activeTab === 'dashboard' && <Dashboard transactions={companyTransactions} accounts={companyAccounts} products={companyProducts} currencySymbol={currencySymbol} />}
             {activeTab === 'ledger' && (
@@ -323,6 +331,17 @@ const App: React.FC = () => {
             {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => !isSuspended && setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} transactions={companyTransactions} products={companyProducts} entities={companyEntities} logoUrl={null} setLogoUrl={() => {}} onRemoveInventoryTag={(tag) => setSettings(p => ({...p, inventoryCategories: p.inventoryCategories.filter(t => t !== tag)}))} onFetchCloud={() => syncToCloud('PULL')} />}
             {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} onRegister={handleRegisterCompany} onUpdateCompany={handleUpdateCompany} transactions={transactions} accounts={accounts} settings={settings} isOnline={isOnline} onTriggerBackup={() => syncToCloud('TRIGGER_BACKUP')} />}
         </main>
+      </div>
+
+      {/* Mobile Navigation (Fixed Bottom) */}
+      <div className="md:hidden fixed bottom-6 left-0 right-0 px-6 z-[99] pointer-events-none">
+        <nav className="glass rounded-[2.5rem] p-1.5 flex justify-between items-center premium-shadow pointer-events-auto overflow-x-auto no-scrollbar scroll-smooth">
+          {menuTabs.map((id) => (
+            <button key={id} onClick={() => setActiveTab(id as Tab)} className={`flex-1 min-w-[50px] flex flex-col items-center gap-1 p-3 rounded-3xl transition-all ${activeTab === id ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400'}`}>
+              {React.createElement((Icons as any)[id.charAt(0).toUpperCase() + id.slice(1)] || Icons.Dashboard, { className: 'w-4 h-4' })}
+            </button>
+          ))}
+        </nav>
       </div>
 
       {isProfileOpen && currentUser && (
