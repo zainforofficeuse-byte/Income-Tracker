@@ -15,13 +15,12 @@ import ProfileModal from './components/ProfileModal';
 import LandingPage from './components/LandingPage';
 import UserManagement from './components/UserManagement';
 
-const STORAGE_KEY = 'trackr_enterprise_v12';
+const STORAGE_KEY = 'trackr_enterprise_v14';
 const MASTER_CONFIG_URL = 'https://raw.githubusercontent.com/zainforofficeuse-byte/config-file-income-tracker/refs/heads/main/config.txt'; 
 
-// Utility: SHA-256 Hashing for Passwords
 const hashPassword = async (password: string) => {
   if (!password) return '';
-  if (password.length === 64) return password; // Already hashed
+  if (password.length === 64) return password;
   const msgUint8 = new TextEncoder().encode(password);
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -159,17 +158,12 @@ const App: React.FC = () => {
   const handleRemoteLogin = async (email: string, password: string) => {
     const remoteUser = await syncToCloud('REMOTE_LOGIN', { email });
     if (!remoteUser) return null;
-
     const inputHash = await hashPassword(password);
-    // Legacy support: Check both hashed and plain text
     if (remoteUser.password === inputHash || remoteUser.password === password) {
-      // 1. Add user to local state
       setUsers(prev => {
          const exists = prev.find(u => u.id === remoteUser.id);
          return exists ? prev : [...prev, remoteUser];
       });
-
-      // 2. Immediate Full Data Pull for this Company
       const url = settings.cloud.scriptUrl || await fetchMasterConfig();
       if (url) {
         const response = await fetch(`${url}?action=SYNC_PULL&companyId=${remoteUser.companyId}`);
@@ -184,7 +178,6 @@ const App: React.FC = () => {
           if (d.users) setUsers(prev => [...prev.filter(u => u.companyId !== remoteUser.companyId && u.id !== 'system-sa'), ...d.users]);
         }
       }
-
       setCurrentUserId(remoteUser.id);
       setIsLocked(false);
       return remoteUser.id;
@@ -230,12 +223,18 @@ const App: React.FC = () => {
     if (!currentUser || isSuspended) return;
     const newTx = { ...tx, id: crypto.randomUUID(), companyId: activeCompanyId, createdBy: currentUser.id, syncStatus: 'PENDING', version: 1, updatedAt: new Date().toISOString() };
     setTransactions(prev => [newTx, ...prev]);
+    
+    // Update Accounts
     if (tx.paymentStatus === 'PAID') {
       setAccounts(prev => prev.map(a => a.id === tx.accountId ? { ...a, balance: a.balance + (tx.type === TransactionType.INCOME ? tx.amount : -tx.amount) } : a));
     }
+    
+    // Update Entities (Customers/Vendors)
     if (tx.entityId) {
        setEntities(prev => prev.map(e => e.id === tx.entityId ? { ...e, balance: e.balance + (tx.type === TransactionType.INCOME ? tx.amount : -tx.amount) } : e));
     }
+    
+    // Update Inventory (CRITICAL SYNC TRIGGER)
     if (tx.cart) {
       tx.cart.forEach((item: any) => {
         setProducts(prev => prev.map(p => p.id === item.productId ? { ...p, stock: p.stock + (tx.type === TransactionType.INCOME ? -item.quantity : item.quantity) } : p));
@@ -261,7 +260,6 @@ const App: React.FC = () => {
     setCompanies(prev => prev.map(c => c.id === compId ? { ...c, ...updates } : c));
     let hashedPass = undefined;
     if (adminUpdates.pin) hashedPass = await hashPassword(adminUpdates.pin);
-
     setUsers(prev => prev.map(u => {
        if (u.companyId === compId && u.role === UserRole.ADMIN) {
          return { ...u, ...adminUpdates, password: hashedPass || u.password };
@@ -287,6 +285,12 @@ const App: React.FC = () => {
 
   const menuTabs = (isSuper ? ['admin', 'dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings'] : ['dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings']);
 
+  const getIcon = (id: string) => {
+    const key = id.charAt(0).toUpperCase() + id.slice(1);
+    const IconComp = (Icons as any)[key] || Icons.Dashboard;
+    return <IconComp className="w-5 h-5" />;
+  };
+
   return (
     <div className="h-screen w-full text-slate-900 dark:text-white max-w-6xl mx-auto relative overflow-hidden flex flex-col md:flex-row bg-white dark:bg-[#030712]">
       {/* Sidebar (Desktop) */}
@@ -298,7 +302,7 @@ const App: React.FC = () => {
           <nav className="flex-1 space-y-2 overflow-y-auto no-scrollbar">
             {menuTabs.map(t => (
                <button key={t} onClick={() => setActiveTab(t as Tab)} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20 dark:bg-emerald-500' : 'text-slate-400 hover:bg-emerald-50/50 dark:hover:bg-white/5'}`}>
-                  {React.createElement((Icons as any)[t.charAt(0).toUpperCase() + t.slice(1)] || Icons.Dashboard, { className: 'w-4 h-4' })}
+                  {getIcon(t)}
                   {t}
                </button>
             ))}
@@ -311,12 +315,12 @@ const App: React.FC = () => {
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
         {/* Mobile Header */}
-        <header className="px-6 pt-8 pb-4 flex justify-between items-center md:hidden z-40 bg-white/80 dark:bg-black/80 backdrop-blur-lg border-b border-emerald-500/5">
+        <header className="px-6 pt-10 pb-4 flex justify-between items-center md:hidden z-40 bg-white/90 dark:bg-black/90 backdrop-blur-xl border-b border-emerald-500/5">
            <h1 className="text-xl font-black tracking-tightest">TRACKR<span className="text-emerald-500">.</span></h1>
            <button onClick={() => setIsProfileOpen(true)} className="h-10 w-10 rounded-full bg-emerald-50 dark:bg-slate-800 flex items-center justify-center font-black text-emerald-600 border border-emerald-500/10">{currentUser?.name[0]}</button>
         </header>
 
-        <main className="flex-1 overflow-y-auto no-scrollbar px-6 md:px-12 py-8 pb-40">
+        <main className="flex-1 overflow-y-auto no-scrollbar px-6 md:px-12 py-8 pb-32">
             {activeTab === 'dashboard' && <Dashboard transactions={companyTransactions} accounts={companyAccounts} products={companyProducts} currencySymbol={currencySymbol} />}
             {activeTab === 'ledger' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -334,11 +338,16 @@ const App: React.FC = () => {
       </div>
 
       {/* Mobile Navigation (Fixed Bottom) */}
-      <div className="md:hidden fixed bottom-6 left-0 right-0 px-6 z-[99] pointer-events-none">
-        <nav className="glass rounded-[2.5rem] p-1.5 flex justify-between items-center premium-shadow pointer-events-auto overflow-x-auto no-scrollbar scroll-smooth">
+      <div className="md:hidden fixed bottom-6 left-0 right-0 px-4 z-[99] pointer-events-auto">
+        <nav className="glass rounded-[2.5rem] p-1.5 flex justify-between items-center premium-shadow overflow-x-auto no-scrollbar scroll-smooth gap-1">
           {menuTabs.map((id) => (
-            <button key={id} onClick={() => setActiveTab(id as Tab)} className={`flex-1 min-w-[50px] flex flex-col items-center gap-1 p-3 rounded-3xl transition-all ${activeTab === id ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400'}`}>
-              {React.createElement((Icons as any)[id.charAt(0).toUpperCase() + id.slice(1)] || Icons.Dashboard, { className: 'w-4 h-4' })}
+            <button 
+              key={id} 
+              onClick={() => setActiveTab(id as Tab)} 
+              className={`flex-shrink-0 min-w-[50px] flex flex-col items-center gap-1 p-3 rounded-3xl transition-all ${activeTab === id ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20' : 'text-slate-400'}`}
+            >
+              {getIcon(id)}
+              <span className="text-[7px] font-black uppercase tracking-tighter">{id}</span>
             </button>
           ))}
         </nav>
