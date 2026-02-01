@@ -15,7 +15,7 @@ import ProfileModal from './components/ProfileModal';
 import LandingPage from './components/LandingPage';
 import UserManagement from './components/UserManagement';
 
-const STORAGE_KEY = 'trackr_enterprise_v14';
+const STORAGE_KEY = 'trackr_enterprise_v15';
 const MASTER_CONFIG_URL = 'https://raw.githubusercontent.com/zainforofficeuse-byte/config-file-income-tracker/refs/heads/main/config.txt'; 
 
 const hashPassword = async (password: string) => {
@@ -224,17 +224,14 @@ const App: React.FC = () => {
     const newTx = { ...tx, id: crypto.randomUUID(), companyId: activeCompanyId, createdBy: currentUser.id, syncStatus: 'PENDING', version: 1, updatedAt: new Date().toISOString() };
     setTransactions(prev => [newTx, ...prev]);
     
-    // Update Accounts
     if (tx.paymentStatus === 'PAID') {
       setAccounts(prev => prev.map(a => a.id === tx.accountId ? { ...a, balance: a.balance + (tx.type === TransactionType.INCOME ? tx.amount : -tx.amount) } : a));
     }
     
-    // Update Entities (Customers/Vendors)
     if (tx.entityId) {
        setEntities(prev => prev.map(e => e.id === tx.entityId ? { ...e, balance: e.balance + (tx.type === TransactionType.INCOME ? tx.amount : -tx.amount) } : e));
     }
     
-    // Update Inventory (CRITICAL SYNC TRIGGER)
     if (tx.cart) {
       tx.cart.forEach((item: any) => {
         setProducts(prev => prev.map(p => p.id === item.productId ? { ...p, stock: p.stock + (tx.type === TransactionType.INCOME ? -item.quantity : item.quantity) } : p));
@@ -337,14 +334,14 @@ const App: React.FC = () => {
         </main>
       </div>
 
-      {/* Mobile Navigation (Fixed Bottom) */}
+      {/* Mobile Navigation (Horizontal Dock) */}
       <div className="md:hidden fixed bottom-6 left-0 right-0 px-4 z-[99] pointer-events-auto">
-        <nav className="glass rounded-[2.5rem] p-1.5 flex justify-between items-center premium-shadow overflow-x-auto no-scrollbar scroll-smooth gap-1">
+        <nav className="glass rounded-[2.5rem] p-2 flex items-center premium-shadow overflow-x-auto no-scrollbar scroll-smooth gap-1">
           {menuTabs.map((id) => (
             <button 
               key={id} 
               onClick={() => setActiveTab(id as Tab)} 
-              className={`flex-shrink-0 min-w-[50px] flex flex-col items-center gap-1 p-3 rounded-3xl transition-all ${activeTab === id ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20' : 'text-slate-400'}`}
+              className={`flex-shrink-0 min-w-[65px] h-[65px] flex flex-col items-center justify-center gap-1 p-2 rounded-3xl transition-all ${activeTab === id ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20' : 'text-slate-400'}`}
             >
               {getIcon(id)}
               <span className="text-[7px] font-black uppercase tracking-tighter">{id}</span>

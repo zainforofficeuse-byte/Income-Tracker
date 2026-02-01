@@ -11,7 +11,7 @@ interface ProfileModalProps {
 
 const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSave, onLogout }) => {
   const [name, setName] = useState(user.name);
-  const [pin, setPin] = useState(user.pin); // user.pin is now correctly typed in User interface
+  const [pin, setPin] = useState(user.pin);
 
   const handleSave = () => {
     if (name.trim() === '' || pin.length !== 4) return;
@@ -27,7 +27,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSave, onLo
            <div className="h-20 w-20 rounded-[2.5rem] bg-indigo-50 dark:bg-slate-800 flex items-center justify-center border-4 border-white dark:border-slate-800 shadow-xl overflow-hidden mb-4 text-3xl font-black text-indigo-500">
               {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : user.name[0]}
            </div>
-           <h3 className="text-xl font-black">Profile Settings</h3>
+           <h3 className="text-xl font-black text-slate-900 dark:text-white">Profile Settings</h3>
            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Manage Credentials</p>
         </div>
 
@@ -37,7 +37,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSave, onLo
             <input 
               value={name} 
               onChange={e => setName(e.target.value)} 
-              className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none focus:ring-2 focus:ring-indigo-500/20" 
+              className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none focus:ring-2 focus:ring-indigo-500/20 text-slate-900 dark:text-white" 
               placeholder="Your Name"
             />
           </div>
@@ -48,7 +48,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSave, onLo
               maxLength={4} 
               value={pin} 
               onChange={e => setPin(e.target.value)} 
-              className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none text-center tracking-widest focus:ring-2 focus:ring-indigo-500/20" 
+              className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-black text-sm border-none text-center tracking-widest focus:ring-2 focus:ring-indigo-500/20 text-slate-900 dark:text-white" 
               placeholder="xxxx"
             />
           </div>

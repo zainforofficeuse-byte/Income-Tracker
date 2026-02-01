@@ -23,7 +23,6 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onReg
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState('');
 
-  // Local Hashing Helper (Duplicate for component isolation if needed, but App provides it)
   const hashPassword = async (password: string) => {
     const msgUint8 = new TextEncoder().encode(password);
     const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
@@ -37,7 +36,6 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onReg
     setError('');
 
     try {
-      // 1. Local Check
       const hashedInput = await hashPassword(formData.password);
       const localUser = users.find(u => u.email.toLowerCase() === formData.email.toLowerCase() && (u.password === hashedInput || u.password === formData.password));
       
@@ -46,7 +44,6 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onReg
         return;
       }
 
-      // 2. Remote Fallback (New Device Support)
       const remoteId = await onRemoteLogin(formData.email, formData.password);
       if (remoteId) {
         onUnlock(remoteId);
@@ -107,7 +104,7 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onReg
                   type="email"
                   required
                   placeholder="name@company.com" 
-                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm focus:ring-2 focus:ring-emerald-500/10" 
+                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm focus:ring-2 focus:ring-emerald-500/10 text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-700" 
                   value={formData.email} 
                   onChange={e => setFormData({...formData, email: e.target.value})} 
                 />
@@ -118,7 +115,7 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onReg
                   type="password"
                   required
                   placeholder="••••••••" 
-                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm focus:ring-2 focus:ring-emerald-500/10" 
+                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm focus:ring-2 focus:ring-emerald-500/10 text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-700" 
                   value={formData.password} 
                   onChange={e => setFormData({...formData, password: e.target.value})} 
                 />
@@ -138,7 +135,7 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onReg
                 <input 
                   required
                   placeholder="Azeem Traders" 
-                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm" 
+                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-700" 
                   value={formData.company} 
                   onChange={e => setFormData({...formData, company: e.target.value})} 
                 />
@@ -148,7 +145,7 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onReg
                 <input 
                   required
                   placeholder="Zain Azeem" 
-                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm" 
+                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-700" 
                   value={formData.name} 
                   onChange={e => setFormData({...formData, name: e.target.value})} 
                 />
@@ -159,7 +156,7 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onReg
                   type="email"
                   required
                   placeholder="admin@company.com" 
-                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm" 
+                  className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-700" 
                   value={formData.email} 
                   onChange={e => setFormData({...formData, email: e.target.value})} 
                 />
@@ -171,7 +168,7 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onReg
                      type="password"
                      required
                      placeholder="••••" 
-                     className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm" 
+                     className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-700" 
                      value={formData.password} 
                      onChange={e => setFormData({...formData, password: e.target.value})} 
                    />
@@ -182,7 +179,7 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ companies, users, onUnlock, onReg
                      type="password"
                      required
                      placeholder="••••" 
-                     className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm" 
+                     className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 shadow-sm text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-700" 
                      value={formData.confirmPassword} 
                      onChange={e => setFormData({...formData, confirmPassword: e.target.value})} 
                    />
