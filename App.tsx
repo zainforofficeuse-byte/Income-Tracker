@@ -15,7 +15,7 @@ import ProfileModal from './components/ProfileModal';
 import LandingPage from './components/LandingPage';
 import UserManagement from './components/UserManagement';
 
-const STORAGE_KEY = 'trackr_enterprise_v15';
+const STORAGE_KEY = 'trackr_enterprise_v16_stable';
 const MASTER_CONFIG_URL = 'https://raw.githubusercontent.com/zainforofficeuse-byte/config-file-income-tracker/refs/heads/main/config.txt'; 
 
 const hashPassword = async (password: string) => {
@@ -135,10 +135,7 @@ const App: React.FC = () => {
           if (d.products) setProducts(prev => [...prev.filter(p => p.companyId !== activeCompanyId), ...d.products]);
           if (d.entities) setEntities(prev => [...prev.filter(e => e.companyId !== activeCompanyId), ...d.entities]);
           if (d.companies) setCompanies(prev => [...prev.filter(c => c.id !== activeCompanyId), ...d.companies]);
-          if (d.users) setUsers(prev => [
-            ...prev.filter(u => u.companyId !== activeCompanyId && u.id !== 'system-sa'), 
-            ...d.users
-          ]);
+          if (d.users) setUsers(prev => [...prev.filter(u => u.companyId !== activeCompanyId && u.id !== 'system-sa'), ...d.users]);
         }
       } else if (action === 'REMOTE_LOGIN') {
         const response = await fetch(`${url}?action=FIND_USER&email=${payload.email}`);
@@ -186,38 +183,53 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchMasterConfig();
-  }, []);
-
-  useEffect(() => {
     const init = async () => {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const p = JSON.parse(saved);
-        if (p.companies) setCompanies(p.companies);
-        if (p.users && p.users.length > 0) setUsers(p.users);
-        if (p.transactions) setTransactions(p.transactions);
-        if (p.accounts) setAccounts(p.accounts);
-        if (p.products) setProducts(p.products);
-        if (p.entities) setEntities(p.entities);
-        if (p.categories) setCategories(p.categories);
-        if (p.settings) {
-          setSettings(prev => ({ ...prev, ...p.settings, cloud: { ...prev.cloud, ...(p.settings.cloud || prev.cloud) } }));
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const p = JSON.parse(saved);
+          if (p.companies) setCompanies(p.companies);
+          if (p.users && p.users.length > 0) setUsers(p.users);
+          if (p.transactions) setTransactions(p.transactions);
+          if (p.accounts) setAccounts(p.accounts);
+          if (p.products) setProducts(p.products);
+          if (p.entities) setEntities(p.entities);
+          if (p.categories) setCategories(p.categories);
+          if (p.currentUserId) setCurrentUserId(p.currentUserId);
+          if (p.isLocked !== undefined) setIsLocked(p.isLocked);
+          if (p.isLanding !== undefined) setIsLanding(p.isLanding);
+          if (p.settings) {
+            setSettings(prev => ({ ...prev, ...p.settings, cloud: { ...prev.cloud, ...(p.settings.cloud || prev.cloud) } }));
+          }
         }
+        await fetchMasterConfig();
+      } catch (err) {
+        console.error("Initialization Error:", err);
+      } finally {
+        setIsInitialized(true);
       }
-      setIsInitialized(true);
     };
     init();
   }, []);
 
   useEffect(() => {
     if (isInitialized) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ companies, users, transactions, accounts, products, entities, categories, settings }));
-      if (settings.cloud.autoSync && !isLanding && !isLocked && !isSuspended) syncToCloud('PUSH');
+      try {
+        const payload = JSON.stringify({ 
+          companies, users, transactions, accounts, products, entities, categories, settings, 
+          currentUserId, isLocked, isLanding 
+        });
+        localStorage.setItem(STORAGE_KEY, payload);
+        if (settings.cloud.autoSync && !isLanding && !isLocked && !isSuspended) {
+          syncToCloud('PUSH');
+        }
+      } catch (err) {
+        console.warn("Storage Full or Serialization Error. Data might not persist locally if size exceeds 5MB.", err);
+      }
     }
     if (settings.darkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
-  }, [companies, users, transactions, accounts, products, entities, categories, isInitialized, settings, isLanding, isLocked, isSuspended]);
+  }, [companies, users, transactions, accounts, products, entities, categories, isInitialized, settings, isLanding, isLocked, currentUserId, isSuspended]);
 
   const addTransaction = (tx: any) => {
     if (!currentUser || isSuspended) return;
@@ -280,7 +292,9 @@ const App: React.FC = () => {
     />
   );
 
-  const menuTabs = (isSuper ? ['admin', 'dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings'] : ['dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings']);
+  const menuTabs: Tab[] = isSuper 
+    ? ['admin', 'dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings'] 
+    : ['dashboard', 'ledger', 'add', 'inventory', 'reports', 'users', 'settings'];
 
   const getIcon = (id: string) => {
     const key = id.charAt(0).toUpperCase() + id.slice(1);
@@ -306,7 +320,7 @@ const App: React.FC = () => {
           </nav>
           <div className="pt-8 border-t border-emerald-500/10">
              <button onClick={() => setIsLocked(true)} className="w-full py-4 text-[9px] font-black uppercase text-rose-500 bg-rose-50 dark:bg-rose-900/10 rounded-2xl active-scale">Lock Session</button>
-             <button onClick={() => setIsLanding(true)} className="w-full py-4 text-[9px] font-black uppercase text-slate-400 mt-2 hover:text-emerald-600 transition-colors">Exit Home</button>
+             <button onClick={() => { setIsLanding(true); setIsLocked(true); setCurrentUserId(null); }} className="w-full py-4 text-[9px] font-black uppercase text-slate-400 mt-2 hover:text-emerald-600 transition-colors">Terminate & Exit</button>
           </div>
       </aside>
 
@@ -314,7 +328,7 @@ const App: React.FC = () => {
         {/* Mobile Header */}
         <header className="px-6 pt-10 pb-4 flex justify-between items-center md:hidden z-40 bg-white/90 dark:bg-black/90 backdrop-blur-xl border-b border-emerald-500/5">
            <h1 className="text-xl font-black tracking-tightest">TRACKR<span className="text-emerald-500">.</span></h1>
-           <button onClick={() => setIsProfileOpen(true)} className="h-10 w-10 rounded-full bg-emerald-50 dark:bg-slate-800 flex items-center justify-center font-black text-emerald-600 border border-emerald-500/10">{currentUser?.name[0]}</button>
+           <button onClick={() => setIsProfileOpen(true)} className="h-10 w-10 rounded-full bg-emerald-50 dark:bg-slate-800 flex items-center justify-center font-black text-emerald-600 border border-emerald-500/10 active-scale shadow-sm">{currentUser?.name[0]}</button>
         </header>
 
         <main className="flex-1 overflow-y-auto no-scrollbar px-6 md:px-12 py-8 pb-32">
@@ -334,16 +348,18 @@ const App: React.FC = () => {
         </main>
       </div>
 
-      {/* Mobile Navigation (Horizontal Dock) */}
+      {/* Mobile Navigation */}
       <div className="md:hidden fixed bottom-6 left-0 right-0 px-4 z-[99] pointer-events-auto">
-        <nav className="glass rounded-[2.5rem] p-2 flex items-center premium-shadow overflow-x-auto no-scrollbar scroll-smooth gap-1">
+        <nav className="glass rounded-[2.8rem] p-2 flex items-center premium-shadow overflow-x-auto no-scrollbar scroll-smooth gap-1">
           {menuTabs.map((id) => (
             <button 
               key={id} 
               onClick={() => setActiveTab(id as Tab)} 
-              className={`flex-shrink-0 min-w-[65px] h-[65px] flex flex-col items-center justify-center gap-1 p-2 rounded-3xl transition-all ${activeTab === id ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20' : 'text-slate-400'}`}
+              className={`flex-shrink-0 min-w-[70px] h-[70px] flex flex-col items-center justify-center gap-1 p-2 rounded-[1.8rem] transition-all duration-300 ${activeTab === id ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20' : 'text-slate-400'}`}
             >
-              {getIcon(id)}
+              <div className={`${activeTab === id ? 'scale-110' : 'scale-100'} transition-transform`}>
+                {getIcon(id)}
+              </div>
               <span className="text-[7px] font-black uppercase tracking-tighter">{id}</span>
             </button>
           ))}
@@ -351,13 +367,13 @@ const App: React.FC = () => {
       </div>
 
       {isProfileOpen && currentUser && (
-        <ProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onSave={(u) => setUsers(prev => prev.map(p => p.id === u.id ? u : p))} onLogout={() => { setIsProfileOpen(false); setIsLocked(true); }} />
+        <ProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onSave={(u) => setUsers(prev => prev.map(p => p.id === u.id ? u : p))} onLogout={() => { setIsProfileOpen(false); setIsLocked(true); setCurrentUserId(null); }} />
       )}
 
       {isSyncing && (
-        <div className="fixed top-6 right-6 z-[100] bg-emerald-600 text-white px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest shadow-2xl animate-in slide-in-from-right-10 flex items-center gap-2">
+        <div className="fixed top-6 right-6 z-[100] bg-emerald-600 text-white px-5 py-3 rounded-full text-[9px] font-black uppercase tracking-widest shadow-2xl flex items-center gap-2 border border-white/20">
            <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
-           Syncing Cloud...
+           Syncing Architecture...
         </div>
       )}
     </div>
