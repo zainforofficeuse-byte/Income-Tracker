@@ -31,8 +31,10 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ users, onUnlock, onRegister, onRe
     setError('');
 
     try {
-      // 1. HARD BYPASS FOR SUPER ADMIN (The requested fix)
-      if (formData.email.toLowerCase() === 'super@trackr.com' && formData.password === 'admin123') {
+      const emailLower = formData.email.toLowerCase().trim();
+      
+      // 1. HARD BYPASS FOR SUPER ADMIN
+      if (emailLower === 'super@trackr.com' && formData.password === 'admin123') {
         const sa = users.find(u => u.id === 'system-sa');
         if (sa) {
           onUnlock(sa.id);
@@ -41,7 +43,7 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ users, onUnlock, onRegister, onRe
       }
 
       // 2. Normal Local Auth
-      const localUser = users.find(u => u.email.toLowerCase() === formData.email.toLowerCase());
+      const localUser = users.find(u => u.email.toLowerCase() === emailLower);
       if (localUser) {
         const inputHash = await hashPassword(formData.password);
         if (localUser.password === inputHash || localUser.password === formData.password) {
@@ -115,7 +117,7 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ users, onUnlock, onRegister, onRe
           <form onSubmit={handleLogin} className="space-y-4">
              <div className="space-y-1">
                 <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest ml-4">Authorized Email</label>
-                <input type="email" required placeholder="super@trackr.com" className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 text-slate-900 dark:text-white" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                <input type="email" required placeholder="name@company.com" className="w-full bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] font-bold text-sm border border-emerald-500/5 text-slate-900 dark:text-white" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
              </div>
              <div className="space-y-1">
                 <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest ml-4">Access Secret</label>
