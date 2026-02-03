@@ -24,11 +24,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, setUsers, set
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
 
-  const syncStats = useMemo(() => {
-    const pending = transactions.filter(t => t.syncStatus === 'PENDING').length;
-    return { pending };
-  }, [transactions]);
-
   // Find users waiting for approval (Global Queue)
   const pendingApprovals = useMemo(() => users.filter(u => u.status === 'PENDING'), [users]);
 
@@ -42,20 +37,24 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, setUsers, set
     }
   };
 
-  const approveUser = (userId: string) => {
+  const approveUser = async (userId: string) => {
     const userToApprove = users.find(u => u.id === userId);
     if (!userToApprove) return;
 
-    // 1. Activate User
+    // 1. Update Locally
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: 'ACTIVE' } : u));
-    
-    // 2. Activate their Company as well
     setCompanies(prev => prev.map(c => c.id === userToApprove.companyId ? { ...c, status: 'ACTIVE' } : c));
+    
+    // 2. Trigger Global Push
+    if (onTriggerBackup) {
+      setTimeout(() => onTriggerBackup(), 500);
+    }
   };
 
   const rejectUser = (userId: string) => {
     if (confirm("Permanently reject this access request?")) {
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: 'REJECTED' } : u));
+      if (onTriggerBackup) setTimeout(() => onTriggerBackup(), 500);
     }
   };
 
@@ -100,7 +99,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, setUsers, set
                     <div className="flex items-center justify-between">
                        <div className="flex items-center gap-4">
                           <div className="h-14 w-14 rounded-2xl bg-rose-50 dark:bg-rose-950 flex items-center justify-center font-black text-2xl text-rose-500 border border-rose-500/10">
-                             {company?.name[0] || user.name[0]}
+                             {company?.name?.[0] || user.name[0]}
                           </div>
                           <div>
                              <h4 className="font-black text-lg text-slate-900 dark:text-white">{company?.name || 'New Enterprise'}</h4>

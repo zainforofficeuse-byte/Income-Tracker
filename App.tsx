@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Tab, Transaction, Account, UserSettings, TransactionType, CURRENCIES, Entity, DEFAULT_CATEGORIES, DEFAULT_PRODUCT_CATEGORIES, Product, User, UserRole, Company } from './types';
 import { Icons } from './constants';
 import Dashboard from './components/Dashboard';
@@ -93,6 +93,7 @@ const App: React.FC = () => {
     isServerResponding: lastCloudResponse
   }), [settings.cloud.scriptUrl, isOnline, lastCloudResponse]);
 
+  // Unified Data Filters
   const companyTransactions = useMemo(() => isSuper ? transactions : transactions.filter(t => t.companyId === activeCompanyId), [transactions, activeCompanyId, isSuper]);
   const companyAccounts = useMemo(() => isSuper ? accounts : accounts.filter(a => a.companyId === activeCompanyId), [accounts, activeCompanyId, isSuper]);
   const companyProducts = useMemo(() => isSuper ? products : products.filter(p => p.companyId === activeCompanyId), [products, activeCompanyId, isSuper]);
@@ -107,25 +108,34 @@ const App: React.FC = () => {
       if (scriptUrlMatch) {
         const url = scriptUrlMatch[0];
         setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, scriptUrl: url, isConnected: true } }));
-        fetch(url + '?action=PING').then(r => setLastCloudResponse(r.ok)).catch(() => setLastCloudResponse(false));
         return url;
       }
     } catch (err) { console.error("Config fetch error:", err); }
     return null;
   };
 
-  const syncToCloud = async (action: 'PUSH' | 'PULL' | 'REMOTE_LOGIN', payload?: any) => {
+  const syncToCloud = useCallback(async (action: 'PUSH' | 'PULL' | 'REMOTE_LOGIN', payload?: any) => {
     let url = settings.cloud.scriptUrl;
-    if (!url) url = await fetchMasterConfig() || '';
+    if (!url) {
+      url = await fetchMasterConfig() || '';
+    }
     if (!url || !isOnline) return null;
     
     setIsSyncing(true);
     try {
+      const queryId = isSuper ? 'GLOBAL' : activeCompanyId;
+
       if (action === 'PUSH') {
         const body = {
           action: 'SYNC_PUSH',
-          companyId: isSuper ? 'GLOBAL' : activeCompanyId,
-          data: { transactions, accounts, products, entities, users, companies, settings, categories }
+          companyId: queryId,
+          data: { 
+            transactions: isSuper ? transactions : transactions.filter(t => t.companyId === activeCompanyId), 
+            accounts: isSuper ? accounts : accounts.filter(a => a.companyId === activeCompanyId), 
+            products: isSuper ? products : products.filter(p => p.companyId === activeCompanyId), 
+            entities: isSuper ? entities : entities.filter(e => e.companyId === activeCompanyId), 
+            users, companies, settings, categories 
+          }
         };
         await fetch(url, {
           method: 'POST',
@@ -135,29 +145,29 @@ const App: React.FC = () => {
         });
         setLastCloudResponse(true);
       } else if (action === 'PULL') {
-        const queryId = isSuper ? 'GLOBAL' : activeCompanyId;
         const response = await fetch(`${url}?action=SYNC_PULL&companyId=${queryId}`);
         const result = await response.json();
         setLastCloudResponse(true);
         if (result.status === 'success' && result.data) {
           const d = result.data;
           if (isSuper) {
+            // Global Merge Logic
             if (d.transactions) setTransactions(d.transactions);
             if (d.accounts) setAccounts(d.accounts);
             if (d.products) setProducts(d.products);
             if (d.entities) setEntities(d.entities);
             if (d.companies) setCompanies(d.companies);
-            if (d.users) setUsers(prev => {
-              const currentSA = prev.find(u => u.id === 'system-sa')!;
-              const remoteUsers = d.users.filter((u: User) => u.id !== 'system-sa');
-              return [currentSA, ...remoteUsers];
-            });
-            if (d.categories) setCategories(d.categories);
+            if (d.users) {
+              setUsers(prev => {
+                const sa = prev.find(u => u.id === 'system-sa')!;
+                const otherUsers = d.users.filter((u: User) => u.id !== 'system-sa');
+                return [sa, ...otherUsers];
+              });
+            }
           } else {
+            // Tenant Isolated Logic
             if (d.transactions) setTransactions(prev => [...prev.filter(t => t.companyId !== activeCompanyId), ...d.transactions]);
             if (d.accounts) setAccounts(prev => [...prev.filter(a => a.companyId !== activeCompanyId), ...d.accounts]);
-            if (d.products) setProducts(prev => [...prev.filter(p => p.companyId !== activeCompanyId), ...d.products]);
-            if (d.entities) setEntities(prev => [...prev.filter(e => e.companyId !== activeCompanyId), ...d.entities]);
             if (d.users) setUsers(prev => [...prev.filter(u => u.companyId !== activeCompanyId && u.id !== 'system-sa'), ...d.users]);
           }
         }
@@ -174,22 +184,17 @@ const App: React.FC = () => {
       setTimeout(() => setIsSyncing(false), 800);
     }
     return null;
-  };
+  }, [settings.cloud.scriptUrl, isOnline, isSuper, activeCompanyId, transactions, accounts, products, entities, users, companies, settings, categories]);
 
-  // AUTOMATIC SYNC LOGIC FOR SUPER ADMIN
+  // AUTO-HEARTBEAT FOR ADMIN
   useEffect(() => {
     let interval: any;
     if (activeTab === 'admin' && isSuper && isOnline) {
-      // 1. Immediate Pull when opening Admin Tab
       syncToCloud('PULL');
-      
-      // 2. Periodic background pull to check for naye users every 45 seconds
-      interval = setInterval(() => {
-        syncToCloud('PULL');
-      }, 45000);
+      interval = setInterval(() => syncToCloud('PULL'), 20000); // 20s fast-sync for admin
     }
     return () => { if (interval) clearInterval(interval); };
-  }, [activeTab, isSuper, isOnline, settings.cloud.scriptUrl]);
+  }, [activeTab, isSuper, isOnline, syncToCloud]);
 
   useEffect(() => {
     const init = async () => {
@@ -245,7 +250,7 @@ const App: React.FC = () => {
     }
     if (settings.darkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
-  }, [companies, users, transactions, accounts, products, entities, categories, isInitialized, settings, isLanding, isLocked, currentUserId]);
+  }, [companies, users, transactions, accounts, products, entities, categories, isInitialized, settings, isLanding, isLocked, currentUserId, syncToCloud]);
 
   const addTransaction = (tx: any) => {
     const newTx = { ...tx, id: crypto.randomUUID(), companyId: activeCompanyId, createdBy: currentUser?.id, syncStatus: 'PENDING', version: 1, updatedAt: new Date().toISOString() };
@@ -269,9 +274,41 @@ const App: React.FC = () => {
     const userId = crypto.randomUUID();
     const accId = crypto.randomUUID();
     const hashedPass = await hashPassword(adminPass);
-    setCompanies(prev => [...prev, { id: compId, name, registrationDate: new Date().toISOString(), status: 'ACTIVE' }]);
-    setUsers(prev => [...prev, { id: userId, companyId: compId, name: adminName, email: adminEmail, password: hashedPass, pin: adminPass, role: UserRole.ADMIN, status: 'PENDING' }]);
-    setAccounts(prev => [...prev, { id: accId, companyId: compId, name: 'Main Liquidity', balance: 0, color: '#10b981', type: 'CASH' }]);
+    
+    const newCompany: Company = { id: compId, name, registrationDate: new Date().toISOString(), status: 'SUSPENDED' };
+    const newUser: User = { id: userId, companyId: compId, name: adminName, email: adminEmail, password: hashedPass, pin: adminPass, role: UserRole.ADMIN, status: 'PENDING' };
+    const newAccount: Account = { id: accId, companyId: compId, name: 'Main Liquidity', balance: 0, color: '#10b981', type: 'CASH' };
+
+    // Update Local State first
+    setCompanies(prev => [...prev, newCompany]);
+    setUsers(prev => [...prev, newUser]);
+    setAccounts(prev => [...prev, newAccount]);
+
+    // Force PUSH to cloud with the newly added data
+    // Use timeout to ensure state update is processed
+    setTimeout(() => {
+        const body = {
+          action: 'SYNC_PUSH',
+          companyId: compId,
+          data: { 
+            transactions: [], 
+            accounts: [newAccount], 
+            products: [], 
+            entities: [], 
+            users: [newUser], 
+            companies: [newCompany], 
+            settings: settings, 
+            categories: categories 
+          }
+        };
+        fetch(settings.cloud.scriptUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+    }, 100);
+
     return userId;
   };
 
