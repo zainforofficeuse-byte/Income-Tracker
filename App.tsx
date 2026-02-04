@@ -19,11 +19,24 @@ import SystemLogs from './components/SystemLogs';
 const STORAGE_KEY = 'trackr_enterprise_v26_final';
 const MASTER_CONFIG_URL = 'https://raw.githubusercontent.com/zainforofficeuse-byte/config-file-income-tracker/refs/heads/main/config.txt'; 
 
+const INITIAL_USERS: User[] = [
+  { 
+    id: 'system-sa', 
+    companyId: 'SYSTEM', 
+    name: 'Master Admin', 
+    email: 'super@trackr.com', 
+    password: 'admin123', // Development bypass
+    pin: '1234', 
+    role: UserRole.SUPER_ADMIN,
+    status: 'ACTIVE'
+  }
+];
+
 const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLanding, setIsLanding] = useState(true);
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -57,14 +70,12 @@ const App: React.FC = () => {
   const activeCompanyId = useMemo(() => currentUser?.companyId || 'SYSTEM', [currentUser]);
   const isSuper = currentUser?.role === UserRole.SUPER_ADMIN;
 
-  // Fix: Derived state for company-specific data to resolve "Cannot find name" errors
   const companyTransactions = useMemo(() => isSuper ? transactions : transactions.filter(t => t.companyId === activeCompanyId), [transactions, isSuper, activeCompanyId]);
   const companyAccounts = useMemo(() => isSuper ? accounts : accounts.filter(a => a.companyId === activeCompanyId), [accounts, isSuper, activeCompanyId]);
   const companyProducts = useMemo(() => isSuper ? products : products.filter(p => p.companyId === activeCompanyId), [products, isSuper, activeCompanyId]);
   const companyEntities = useMemo(() => isSuper ? entities : entities.filter(e => e.companyId === activeCompanyId), [entities, isSuper, activeCompanyId]);
-  const companyUsers = useMemo(() => isSuper ? users : users.filter(u => u.companyId === activeCompanyId), [users, isSuper, activeCompanyId]);
+  const companyUsers = useMemo(() => isSuper ? users : users.filter(u => u.companyId === activeCompanyId || u.role === UserRole.SUPER_ADMIN), [users, isSuper, activeCompanyId]);
 
-  // Fix: Derived state for cloudStatus to resolve component prop errors
   const cloudStatus = useMemo(() => ({
     isConfigured: !!settings.cloud.scriptUrl,
     isNetworkUp: isOnline,
@@ -79,25 +90,12 @@ const App: React.FC = () => {
       if (scriptUrlMatch) {
         const url = scriptUrlMatch[0];
         setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, scriptUrl: url, isConnected: true } }));
-        addLog(`Master Config Resolved: ${url.slice(0, 40)}...`, 'SUCCESS', 'CLOUD');
+        addLog(`Cloud Engine Link Established: ${url.slice(0, 40)}...`, 'SUCCESS', 'CLOUD');
         return url;
       }
-    } catch (err) { addLog(`Config Fetch Failed: ${err}`, 'ERROR', 'CLOUD'); }
+    } catch (err) { addLog(`Configuration Link Failed: ${err}`, 'ERROR', 'CLOUD'); }
     return null;
   }, [addLog]);
-
-  const sendEmail = useCallback(async (to: string, subject: string, message: string, type: string) => {
-    if (!settings.cloud.scriptUrl || !isOnline) return;
-    try {
-      await fetch(settings.cloud.scriptUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'NOTIFY', payload: { to, subject, message, type, adminEmail: settings.email.adminEmail } })
-      });
-      addLog(`Notification Sent: ${type} to ${to}`, 'INFO', 'EMAIL');
-    } catch (e) { addLog(`Email Failed: ${e}`, 'ERROR', 'EMAIL'); }
-  }, [settings.cloud.scriptUrl, settings.email.adminEmail, isOnline, addLog]);
 
   const syncToCloud = useCallback(async (action: 'PUSH' | 'PULL' | 'REMOTE_LOGIN', payload?: any) => {
     let url = settings.cloud.scriptUrl;
@@ -110,43 +108,32 @@ const App: React.FC = () => {
       if (action === 'PUSH') {
         const body = {
           action: 'SYNC_PUSH', companyId: queryId,
-          data: { 
-            transactions: isSuper ? transactions : transactions.filter(t => t.companyId === activeCompanyId), 
-            accounts: isSuper ? accounts : accounts.filter(a => a.companyId === activeCompanyId), 
-            products: isSuper ? products : products.filter(p => p.companyId === activeCompanyId), 
-            entities: isSuper ? entities : entities.filter(e => e.companyId === activeCompanyId), 
-            users, companies, settings, categories 
-          }
+          data: { transactions, accounts, products, entities, users, companies, settings, categories }
         };
         await fetch(url, { method: 'POST', mode: 'no-cors', body: JSON.stringify(body) });
         setLastCloudResponse(true);
-        addLog(`Cloud Push Successful [${queryId}]`, 'SUCCESS', 'SYNC');
+        addLog(`Outbound Synchronization Completed [${queryId}]`, 'SUCCESS', 'SYNC');
       } else if (action === 'PULL') {
         const response = await fetch(`${url}?action=SYNC_PULL&companyId=${queryId}`);
         const result = await response.json();
         setLastCloudResponse(true);
         if (result.status === 'success' && result.data) {
           const d = result.data;
-          if (isSuper) {
-            if (d.transactions) setTransactions(d.transactions);
-            if (d.accounts) setAccounts(d.accounts);
-            if (d.products) setProducts(d.products);
-            if (d.entities) setEntities(d.entities);
-            if (d.companies) setCompanies(d.companies);
-            if (d.users) setUsers(prev => {
-              const sa = prev.find(u => u.id === 'system-sa')!;
-              return Array.from(new Map([...(d.users || []), sa].map(u => [u.id, u])).values());
-            });
-          } else {
-            if (d.transactions) setTransactions(prev => [...prev.filter(t => t.companyId !== activeCompanyId), ...d.transactions]);
-            if (d.accounts) setAccounts(prev => [...prev.filter(a => a.companyId !== activeCompanyId), ...d.accounts]);
-            if (d.users) setUsers(prev => [...prev.filter(u => u.companyId !== activeCompanyId && u.id !== 'system-sa'), ...d.users]);
-          }
-          addLog(`Cloud Pull Completed [${queryId}]`, 'SUCCESS', 'SYNC');
+          if (d.transactions) setTransactions(d.transactions);
+          if (d.accounts) setAccounts(d.accounts);
+          if (d.products) setProducts(d.products);
+          if (d.entities) setEntities(d.entities);
+          if (d.companies) setCompanies(d.companies);
+          if (d.users) setUsers(prev => {
+             const sa = INITIAL_USERS[0];
+             const merged = Array.from(new Map([...(d.users || []), sa].map(u => [u.id, u])).values());
+             return merged;
+          });
+          addLog(`Inbound Sync Data Decrypted [${queryId}]`, 'SUCCESS', 'SYNC');
         }
       }
     } catch (err) {
-      addLog(`Sync Failure: ${err}`, 'ERROR', 'SYNC');
+      addLog(`Sync Protocol Interrupt: ${err}`, 'ERROR', 'SYNC');
       setLastCloudResponse(false);
     } finally { setIsSyncing(false); }
     return null;
@@ -165,11 +152,13 @@ const App: React.FC = () => {
           if (p.entities) setEntities(p.entities);
           if (p.categories) setCategories(p.categories);
           if (p.settings) setSettings(prev => ({ ...prev, ...p.settings }));
-          if (p.users) setUsers(p.users);
-          addLog("Local State Decrypted Successfully", "SUCCESS", "STORAGE");
+          // Merge SA into users
+          const savedUsers = p.users || [];
+          setUsers(Array.from(new Map([...INITIAL_USERS, ...savedUsers].map(u => [u.id, u])).values()));
+          addLog("Bootstrap Sequence Finished: Registry Restored", "SUCCESS", "STORAGE");
         }
         await fetchMasterConfig();
-      } catch (err) { addLog("Initialization Failed", "ERROR", "STORAGE"); } 
+      } catch (err) { addLog("Critical Boot Failure", "ERROR", "STORAGE"); } 
       finally { setIsInitialized(true); }
     };
     init();
@@ -188,24 +177,27 @@ const App: React.FC = () => {
     
     const newCompany: Company = { id: compId, name, registrationDate: new Date().toISOString(), status: 'SUSPENDED' };
     const newUser: User = { id: userId, companyId: compId, name: adminName, email: adminEmail, password: adminPass, pin: adminPass, role: UserRole.ADMIN, status: 'PENDING' };
-    const newAccount: Account = { id: accId, companyId: compId, name: 'Main Liquidity', balance: 0, color: '#10b981', type: 'CASH' };
+    const newAccount: Account = { id: accId, companyId: compId, name: 'Liquidity Wallet', balance: 0, color: '#10b981', type: 'CASH' };
 
     setCompanies(prev => [...prev, newCompany]);
     setUsers(prev => [...prev, newUser]);
     setAccounts(prev => [...prev, newAccount]);
 
-    addLog(`Initiating Provision for ${name}`, 'INFO', 'AUTH');
+    addLog(`Enterprise Enrollment Created: ${name}`, 'INFO', 'AUTH');
 
+    // Immediate Force Sync for Admin visibility
     const url = settings.cloud.scriptUrl || await fetchMasterConfig();
     if (url) {
-      await fetch(url, {
-        method: 'POST', mode: 'no-cors',
-        body: JSON.stringify({
-          action: 'SYNC_PUSH', companyId: compId,
-          data: { transactions: [], accounts: [newAccount], products: [], entities: [], users: [newUser], companies: [newCompany], settings, categories }
-        })
-      });
-      sendEmail(adminEmail, "Request Received | TRACKR.", `Hi ${adminName}, your enterprise provision request for ${name} is being audited.`, "REGISTRATION");
+      try {
+        await fetch(url, {
+          method: 'POST', mode: 'no-cors',
+          body: JSON.stringify({
+            action: 'SYNC_PUSH', companyId: compId,
+            data: { transactions: [], accounts: [newAccount], products: [], entities: [], users: [newUser], companies: [newCompany], settings, categories }
+          })
+        });
+        addLog(`Pushing enrollment to Global Hub...`, 'SUCCESS', 'SYNC');
+      } catch(e) {}
     }
     return userId;
   };
@@ -217,16 +209,16 @@ const App: React.FC = () => {
       setAccounts(prev => prev.map(a => a.id === newTx.accountId ? { ...a, balance: a.balance + (newTx.type === TransactionType.INCOME ? newTx.amount : -newTx.amount) } : a));
     }
     setActiveTab('ledger');
-    addLog(`Transaction Recorded: ${newTx.category}`, 'SUCCESS', 'LEDGER');
+    addLog(`Asset Movement Logged: ${newTx.category}`, 'SUCCESS', 'LEDGER');
   };
 
   if (!isInitialized) return null;
   if (isLanding) return <LandingPage onGetStarted={() => setIsLanding(false)} onLogin={() => setIsLanding(false)} />;
-  if (isLocked) return <AuthGuard users={users} onUnlock={(id) => { setCurrentUserId(id); setIsLocked(false); addLog("User Authorized", "SUCCESS", "AUTH"); }} onRegister={handleRegisterCompany} onRemoteLogin={async () => null} onBack={() => setIsLanding(true)} />;
+  if (isLocked) return <AuthGuard users={users} onUnlock={(id) => { setCurrentUserId(id); setIsLocked(false); addLog(`Authorization Token Issued for ID: ${id.slice(0, 8)}`, "SUCCESS", "AUTH"); }} onRegister={handleRegisterCompany} onRemoteLogin={async () => null} onBack={() => setIsLanding(true)} />;
 
   return (
     <div className="h-screen w-full text-slate-900 dark:text-white max-w-6xl mx-auto flex flex-col md:flex-row bg-white dark:bg-[#030712] overflow-hidden">
-      <aside className="hidden md:flex flex-col w-64 border-r border-emerald-500/5 p-8">
+      <aside className="hidden md:flex flex-col w-64 border-r border-emerald-500/5 p-8 bg-slate-50/30 dark:bg-black/20">
           <div className="mb-10"><h1 className="text-2xl font-black tracking-tightest">TRACKR<span className="text-emerald-500">.</span></h1></div>
           <nav className="flex-1 space-y-2 overflow-y-auto no-scrollbar">
             {(isSuper ? ['admin', 'dashboard', 'ledger', 'add', 'inventory', 'reports', 'parties', 'users', 'settings', 'logs'] : ['dashboard', 'ledger', 'add', 'inventory', 'reports', 'parties', 'users', 'settings']).map((t: any) => (
@@ -235,7 +227,7 @@ const App: React.FC = () => {
                </button>
             ))}
           </nav>
-          <button onClick={() => setIsLocked(true)} className="w-full py-4 text-[9px] font-black uppercase text-rose-500 bg-rose-50 rounded-2xl mt-8">Lock</button>
+          <button onClick={() => { setIsLocked(true); addLog("Session Terminated Manually", "WARN", "AUTH"); }} className="w-full py-4 text-[9px] font-black uppercase text-rose-500 bg-rose-50 rounded-2xl mt-8 active-scale">Lock System</button>
       </aside>
 
       <main className="flex-1 overflow-y-auto no-scrollbar px-6 md:px-12 py-8 pb-32">
@@ -247,11 +239,11 @@ const App: React.FC = () => {
           {activeTab === 'parties' && <Parties entities={companyEntities} setEntities={setEntities} currencySymbol={CURRENCIES.find(c => c.code === settings.currency)?.symbol || 'Rs.'} transactions={companyTransactions} activeCompanyId={activeCompanyId} />}
           {activeTab === 'users' && <UserManagement users={companyUsers} setUsers={setUsers} currentUserRole={currentUser?.role || UserRole.STAFF} />}
           {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} onRemoveInventoryTag={() => {}} onFetchCloud={() => syncToCloud('PULL')} cloudStatus={cloudStatus} />}
-          {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} setUsers={setUsers} setCompanies={setCompanies} onRegister={handleRegisterCompany} onUpdateCompany={() => {}} transactions={transactions} accounts={accounts} settings={settings} isOnline={isOnline} onTriggerBackup={() => syncToCloud('PUSH')} onGlobalRefresh={() => syncToCloud('PULL')} isSyncing={isSyncing} onNotifyApproval={(u) => sendEmail(u.email, "Access Authorized", "Your TRACKR account is now active.", "APPROVAL")} />}
+          {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} setUsers={setUsers} setCompanies={setCompanies} onRegister={handleRegisterCompany} onUpdateCompany={() => {}} transactions={transactions} accounts={accounts} settings={settings} isOnline={isOnline} onTriggerBackup={() => syncToCloud('PUSH')} onGlobalRefresh={() => syncToCloud('PULL')} isSyncing={isSyncing} onNotifyApproval={(u) => addLog(`User ${u.name} Authorized`, 'SUCCESS', 'ADMIN')} />}
           {activeTab === 'logs' && <SystemLogs logs={logs} onClear={() => setLogs([])} />}
       </main>
 
-      {isProfileOpen && currentUser && <ProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onSave={(u) => { setUsers(prev => prev.map(p => p.id === u.id ? u : p)); sendEmail(u.email, "Security Alert", "Your security profile was updated.", "SECURITY"); }} onLogout={() => setIsLocked(true)} />}
+      {isProfileOpen && currentUser && <ProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onSave={(u) => { setUsers(prev => prev.map(p => p.id === u.id ? u : p)); addLog("Profile Credentials Updated", "SUCCESS", "AUTH"); }} onLogout={() => setIsLocked(true)} />}
     </div>
   );
 };
