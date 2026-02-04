@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Tab, Transaction, Account, UserSettings, TransactionType, CURRENCIES, Entity, DEFAULT_CATEGORIES, DEFAULT_PRODUCT_CATEGORIES, Product, User, UserRole, Company, SystemLog } from './types';
 import { Icons } from './constants';
 import Dashboard from './components/Dashboard';
@@ -25,7 +25,7 @@ const INITIAL_USERS: User[] = [
     companyId: 'SYSTEM', 
     name: 'Master Admin', 
     email: 'super@trackr.com', 
-    password: 'admin123', // Development bypass
+    password: 'admin123',
     pin: '1234', 
     role: UserRole.SUPER_ADMIN,
     status: 'ACTIVE'
@@ -52,6 +52,9 @@ const App: React.FC = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastCloudResponse, setLastCloudResponse] = useState<boolean>(false);
+  
+  // Use number for timer ID to ensure browser compatibility
+  const autoSyncTimerRef = useRef<number | null>(null);
 
   const [settings, setSettings] = useState<UserSettings>({
     currency: 'PKR', darkMode: false, activeAccountId: '', companyName: 'TRACKR.', 
@@ -90,10 +93,10 @@ const App: React.FC = () => {
       if (scriptUrlMatch) {
         const url = scriptUrlMatch[0];
         setSettings(prev => ({ ...prev, cloud: { ...prev.cloud, scriptUrl: url, isConnected: true } }));
-        addLog(`Cloud Engine Link Established: ${url.slice(0, 40)}...`, 'SUCCESS', 'CLOUD');
+        addLog(`Cloud Protocol Active: ${url.slice(0, 40)}...`, 'SUCCESS', 'CLOUD');
         return url;
       }
-    } catch (err) { addLog(`Configuration Link Failed: ${err}`, 'ERROR', 'CLOUD'); }
+    } catch (err) { addLog(`Connection Failed: ${err}`, 'ERROR', 'CLOUD'); }
     return null;
   }, [addLog]);
 
@@ -110,9 +113,10 @@ const App: React.FC = () => {
           action: 'SYNC_PUSH', companyId: queryId,
           data: { transactions, accounts, products, entities, users, companies, settings, categories }
         };
-        await fetch(url, { method: 'POST', mode: 'no-cors', body: JSON.stringify(body) });
+        const response = await fetch(url, { method: 'POST', mode: 'no-cors', body: JSON.stringify(body) });
         setLastCloudResponse(true);
-        addLog(`Outbound Synchronization Completed [${queryId}]`, 'SUCCESS', 'SYNC');
+        addLog(`Cloud Persist Successful [${queryId}]`, 'SUCCESS', 'SYNC');
+        return true;
       } else if (action === 'PULL') {
         const response = await fetch(`${url}?action=SYNC_PULL&companyId=${queryId}`);
         const result = await response.json();
@@ -129,15 +133,40 @@ const App: React.FC = () => {
              const merged = Array.from(new Map([...(d.users || []), sa].map(u => [u.id, u])).values());
              return merged;
           });
-          addLog(`Inbound Sync Data Decrypted [${queryId}]`, 'SUCCESS', 'SYNC');
+          addLog(`Cloud Data Merged [${queryId}]`, 'SUCCESS', 'SYNC');
         }
+        return true;
       }
     } catch (err) {
-      addLog(`Sync Protocol Interrupt: ${err}`, 'ERROR', 'SYNC');
+      addLog(`Sync Protocol Failed: ${err}`, 'ERROR', 'SYNC');
       setLastCloudResponse(false);
     } finally { setIsSyncing(false); }
     return null;
   }, [settings, isOnline, isSuper, activeCompanyId, transactions, accounts, products, entities, users, companies, categories, fetchMasterConfig, addLog]);
+
+  // Priority Auto-Sync Monitor: Trigger PUSH on critical changes if online
+  useEffect(() => {
+    if (!isInitialized || !isOnline || !settings.cloud.scriptUrl) return;
+    
+    // Clear existing timer to debounce
+    if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current);
+    
+    // Set numeric timer ID for browser compatibility
+    autoSyncTimerRef.current = window.setTimeout(() => {
+      addLog("Detecting activity... initiating auto-sync.", "INFO", "SYNC");
+      syncToCloud('PUSH');
+    }, 3000); // 3 seconds after last activity
+
+    return () => { if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current); };
+  }, [users, companies, transactions, isInitialized, isOnline, settings.cloud.scriptUrl, syncToCloud, addLog]);
+
+  useEffect(() => {
+    const handleOnline = () => { setIsOnline(true); addLog("Network Recovered. Ready to sync.", "SUCCESS", "NETWORK"); };
+    const handleOffline = () => { setIsOnline(false); addLog("Network Offline. Switching to Local-First mode.", "WARN", "NETWORK"); };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
+  }, [addLog]);
 
   useEffect(() => {
     const init = async () => {
@@ -152,10 +181,9 @@ const App: React.FC = () => {
           if (p.entities) setEntities(p.entities);
           if (p.categories) setCategories(p.categories);
           if (p.settings) setSettings(prev => ({ ...prev, ...p.settings }));
-          // Merge SA into users
           const savedUsers = p.users || [];
           setUsers(Array.from(new Map([...INITIAL_USERS, ...savedUsers].map(u => [u.id, u])).values()));
-          addLog("Bootstrap Sequence Finished: Registry Restored", "SUCCESS", "STORAGE");
+          addLog("Bootstrap Sequence Finished", "SUCCESS", "STORAGE");
         }
         await fetchMasterConfig();
       } catch (err) { addLog("Critical Boot Failure", "ERROR", "STORAGE"); } 
@@ -184,21 +212,6 @@ const App: React.FC = () => {
     setAccounts(prev => [...prev, newAccount]);
 
     addLog(`Enterprise Enrollment Created: ${name}`, 'INFO', 'AUTH');
-
-    // Immediate Force Sync for Admin visibility
-    const url = settings.cloud.scriptUrl || await fetchMasterConfig();
-    if (url) {
-      try {
-        await fetch(url, {
-          method: 'POST', mode: 'no-cors',
-          body: JSON.stringify({
-            action: 'SYNC_PUSH', companyId: compId,
-            data: { transactions: [], accounts: [newAccount], products: [], entities: [], users: [newUser], companies: [newCompany], settings, categories }
-          })
-        });
-        addLog(`Pushing enrollment to Global Hub...`, 'SUCCESS', 'SYNC');
-      } catch(e) {}
-    }
     return userId;
   };
 
@@ -214,7 +227,7 @@ const App: React.FC = () => {
 
   if (!isInitialized) return null;
   if (isLanding) return <LandingPage onGetStarted={() => setIsLanding(false)} onLogin={() => setIsLanding(false)} />;
-  if (isLocked) return <AuthGuard users={users} onUnlock={(id) => { setCurrentUserId(id); setIsLocked(false); addLog(`Authorization Token Issued for ID: ${id.slice(0, 8)}`, "SUCCESS", "AUTH"); }} onRegister={handleRegisterCompany} onRemoteLogin={async () => null} onBack={() => setIsLanding(true)} />;
+  if (isLocked) return <AuthGuard users={users} onUnlock={(id) => { setCurrentUserId(id); setIsLocked(false); addLog(`Authorization Issued`, "SUCCESS", "AUTH"); }} onRegister={handleRegisterCompany} onRemoteLogin={async () => null} onBack={() => setIsLanding(true)} />;
 
   return (
     <div className="h-screen w-full text-slate-900 dark:text-white max-w-6xl mx-auto flex flex-col md:flex-row bg-white dark:bg-[#030712] overflow-hidden">
@@ -222,12 +235,18 @@ const App: React.FC = () => {
           <div className="mb-10"><h1 className="text-2xl font-black tracking-tightest">TRACKR<span className="text-emerald-500">.</span></h1></div>
           <nav className="flex-1 space-y-2 overflow-y-auto no-scrollbar">
             {(isSuper ? ['admin', 'dashboard', 'ledger', 'add', 'inventory', 'reports', 'parties', 'users', 'settings', 'logs'] : ['dashboard', 'ledger', 'add', 'inventory', 'reports', 'parties', 'users', 'settings']).map((t: any) => (
-               <button key={t} onClick={() => setActiveTab(t)} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-emerald-600 text-white shadow-xl' : 'text-slate-400 hover:bg-emerald-50/50'}`}>
+               <button key={t} onClick={() => setActiveTab(t as Tab)} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-emerald-600 text-white shadow-xl' : 'text-slate-400 hover:bg-emerald-50/50'}`}>
                   {t}
                </button>
             ))}
           </nav>
-          <button onClick={() => { setIsLocked(true); addLog("Session Terminated Manually", "WARN", "AUTH"); }} className="w-full py-4 text-[9px] font-black uppercase text-rose-500 bg-rose-50 rounded-2xl mt-8 active-scale">Lock System</button>
+          <div className="mt-8 space-y-2">
+             <div className="flex items-center justify-between px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                <span className="text-[8px] font-black uppercase text-slate-400">Sync Status</span>
+                <div className={`h-1.5 w-1.5 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : (isOnline ? 'bg-emerald-500' : 'bg-rose-500')}`} />
+             </div>
+             <button onClick={() => { setIsLocked(true); addLog("Session Locked", "WARN", "AUTH"); }} className="w-full py-4 text-[9px] font-black uppercase text-rose-500 bg-rose-50 rounded-2xl active-scale">Lock System</button>
+          </div>
       </aside>
 
       <main className="flex-1 overflow-y-auto no-scrollbar px-6 md:px-12 py-8 pb-32">
@@ -239,11 +258,11 @@ const App: React.FC = () => {
           {activeTab === 'parties' && <Parties entities={companyEntities} setEntities={setEntities} currencySymbol={CURRENCIES.find(c => c.code === settings.currency)?.symbol || 'Rs.'} transactions={companyTransactions} activeCompanyId={activeCompanyId} />}
           {activeTab === 'users' && <UserManagement users={companyUsers} setUsers={setUsers} currentUserRole={currentUser?.role || UserRole.STAFF} />}
           {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} onRemoveInventoryTag={() => {}} onFetchCloud={() => syncToCloud('PULL')} cloudStatus={cloudStatus} />}
-          {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} setUsers={setUsers} setCompanies={setCompanies} onRegister={handleRegisterCompany} onUpdateCompany={() => {}} transactions={transactions} accounts={accounts} settings={settings} isOnline={isOnline} onTriggerBackup={() => syncToCloud('PUSH')} onGlobalRefresh={() => syncToCloud('PULL')} isSyncing={isSyncing} onNotifyApproval={(u) => addLog(`User ${u.name} Authorized`, 'SUCCESS', 'ADMIN')} />}
+          {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} setUsers={setUsers} setCompanies={setCompanies} onRegister={handleRegisterCompany} onUpdateCompany={() => {}} transactions={transactions} accounts={accounts} settings={settings} isOnline={isOnline} onTriggerBackup={async () => await syncToCloud('PUSH')} onGlobalRefresh={() => syncToCloud('PULL')} isSyncing={isSyncing} onNotifyApproval={(u) => addLog(`User ${u.name} Authorized`, 'SUCCESS', 'ADMIN')} />}
           {activeTab === 'logs' && <SystemLogs logs={logs} onClear={() => setLogs([])} />}
       </main>
 
-      {isProfileOpen && currentUser && <ProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onSave={(u) => { setUsers(prev => prev.map(p => p.id === u.id ? u : p)); addLog("Profile Credentials Updated", "SUCCESS", "AUTH"); }} onLogout={() => setIsLocked(true)} />}
+      {isProfileOpen && currentUser && <ProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onSave={(u) => { setUsers(prev => prev.map(p => p.id === u.id ? u : p)); addLog("Profile Updated", "SUCCESS", "AUTH"); }} onLogout={() => setIsLocked(true)} />}
     </div>
   );
 };

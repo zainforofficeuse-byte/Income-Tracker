@@ -14,7 +14,7 @@ interface AdminPanelProps {
   accounts: Account[];
   settings: UserSettings;
   isOnline: boolean;
-  onTriggerBackup?: () => void;
+  onTriggerBackup?: () => Promise<any>;
   onGlobalRefresh?: () => void;
   isSyncing?: boolean;
   onNotifyApproval?: (user: User) => void;
@@ -22,14 +22,31 @@ interface AdminPanelProps {
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, setUsers, setCompanies, onRegister, settings, isOnline, onTriggerBackup, onGlobalRefresh, isSyncing, onNotifyApproval }) => {
   const pendingApprovals = useMemo(() => users.filter(u => u.status === 'PENDING' && u.role !== UserRole.SUPER_ADMIN), [users]);
+  const [internalLoadingId, setInternalLoadingId] = useState<string | null>(null);
 
-  const approveUser = (userId: string) => {
+  const approveUser = async (userId: string) => {
     const user = users.find(u => u.id === userId);
-    if (!user) return;
+    if (!user || internalLoadingId) return;
+
+    setInternalLoadingId(userId);
+
+    // 1. Update State immediately
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: 'ACTIVE' } : u));
     setCompanies(prev => prev.map(c => c.id === user.companyId ? { ...c, status: 'ACTIVE' } : c));
-    if (onTriggerBackup) setTimeout(() => onTriggerBackup(), 300);
+    
+    // 2. Trigger Notification
     if (onNotifyApproval) onNotifyApproval({ ...user, status: 'ACTIVE' });
+
+    // 3. FORCE PRIORITY SYNC and wait for confirmation
+    if (onTriggerBackup && isOnline) {
+      try {
+        await onTriggerBackup();
+      } catch (e) {
+        console.error("Critical Sync Failure during approval:", e);
+      }
+    }
+    
+    setInternalLoadingId(null);
   };
 
   return (
@@ -39,10 +56,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, setUsers, set
             <h2 className="text-3xl font-black tracking-tightest text-slate-900 dark:text-white uppercase">Root Authority</h2>
             <div className="flex items-center gap-2 mt-1">
                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest italic">Global Master Registry</p>
-               {isSyncing && <span className="text-[8px] font-black text-amber-500 uppercase animate-pulse">Syncing...</span>}
+               {(isSyncing || internalLoadingId) && <span className="text-[8px] font-black text-amber-500 uppercase animate-pulse">Syncing Priority...</span>}
             </div>
          </div>
-         <button onClick={onGlobalRefresh} className="px-6 py-3 bg-emerald-600 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest active-scale">Refresh Global Hub</button>
+         <button onClick={onGlobalRefresh} disabled={isSyncing || !!internalLoadingId} className="px-6 py-3 bg-emerald-600 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest active-scale disabled:opacity-30">Refresh Registry</button>
       </div>
 
       <section className="space-y-4">
@@ -51,6 +68,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, setUsers, set
            <div className="space-y-4">
              {pendingApprovals.map(user => {
                const company = companies.find(c => c.id === user.companyId);
+               const isLoading = internalLoadingId === user.id;
                return (
                  <div key={user.id} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] premium-shadow border border-rose-500/10 flex flex-col gap-6 animate-in zoom-in-95">
                     <div className="flex items-center justify-between">
@@ -67,34 +85,41 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ companies, users, setUsers, set
                        <p className="text-sm font-bold truncate">{user.email}</p>
                     </div>
                     <div className="flex gap-2">
-                       <button onClick={() => approveUser(user.id)} className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest active-scale shadow-xl shadow-emerald-500/20 italic">Approve & Activate</button>
+                       <button 
+                        onClick={() => approveUser(user.id)} 
+                        disabled={isLoading}
+                        className={`flex-1 py-4 ${isLoading ? 'bg-amber-500' : 'bg-emerald-600'} text-white rounded-2xl font-black text-[10px] uppercase tracking-widest active-scale shadow-xl italic transition-all`}
+                       >
+                         {isLoading ? 'Persisting to Cloud...' : 'Approve & Activate'}
+                       </button>
                     </div>
                  </div>
                );
              })}
            </div>
          ) : (
-           <div className="py-16 text-center bg-slate-50 dark:bg-slate-900/30 rounded-[3rem] border-2 border-dashed border-slate-200 text-slate-400 text-[10px] font-black uppercase italic">No Pending Requests In Registry</div>
+           <div className="py-16 text-center bg-slate-50 dark:bg-slate-900/30 rounded-[3rem] border-2 border-dashed border-slate-200 text-slate-400 text-[10px] font-black uppercase italic">Registry Queue Empty</div>
          )}
       </section>
 
-      <section className="bg-emerald-950 rounded-[3rem] p-10 text-white shadow-2xl">
-         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+      <section className="bg-emerald-950 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden">
+         <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[60px]" />
+         <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
             <div className="text-center md:text-left">
-               <h3 className="text-2xl font-black">Force Propagation</h3>
-               <p className="text-xs opacity-40 mt-1 uppercase font-bold">Flush all state changes to cloud ecosystem</p>
+               <h3 className="text-2xl font-black uppercase tracking-tightest">Force Propagation</h3>
+               <p className="text-[9px] opacity-40 mt-1 uppercase font-black tracking-widest">Manually flush entire state to global ecosystem</p>
             </div>
-            <button onClick={onTriggerBackup} disabled={!isOnline || isSyncing} className="px-10 py-5 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase shadow-xl active-scale disabled:opacity-30">Push All Changes</button>
+            <button onClick={onTriggerBackup} disabled={!isOnline || isSyncing} className="px-10 py-5 bg-emerald-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active-scale disabled:opacity-30">Push Protocol</button>
          </div>
       </section>
 
       <section className="space-y-6">
-        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest px-2">Managed Enterprises</h3>
+        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Managed Enterprises ({companies.filter(c => c.id !== 'SYSTEM').length})</h3>
         <div className="space-y-4">
           {companies.filter(c => c.id !== 'SYSTEM').map(company => (
             <div key={company.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 premium-shadow border border-black/[0.02] flex items-center justify-between">
               <div className="flex items-center gap-4">
-                 <div className={`h-14 w-14 rounded-2xl flex items-center justify-center font-black text-xl bg-slate-50 dark:bg-slate-800 text-emerald-600`}>{company.name[0]}</div>
+                 <div className={`h-14 w-14 rounded-2xl flex items-center justify-center font-black text-xl bg-slate-50 dark:bg-slate-800 ${company.status === 'ACTIVE' ? 'text-emerald-500' : 'text-slate-300'}`}>{company.name[0]}</div>
                  <div>
                    <h4 className="font-black text-sm">{company.name}</h4>
                    <span className={`text-[7px] font-black uppercase px-2 py-1 rounded inline-block mt-1 ${company.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>{company.status}</span>
