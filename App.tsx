@@ -53,7 +53,6 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastCloudResponse, setLastCloudResponse] = useState<boolean>(false);
   
-  // Use number for timer ID to ensure browser compatibility
   const autoSyncTimerRef = useRef<number | null>(null);
 
   const [settings, setSettings] = useState<UserSettings>({
@@ -113,7 +112,7 @@ const App: React.FC = () => {
           action: 'SYNC_PUSH', companyId: queryId,
           data: { transactions, accounts, products, entities, users, companies, settings, categories }
         };
-        const response = await fetch(url, { method: 'POST', mode: 'no-cors', body: JSON.stringify(body) });
+        await fetch(url, { method: 'POST', mode: 'no-cors', body: JSON.stringify(body) });
         setLastCloudResponse(true);
         addLog(`Cloud Persist Successful [${queryId}]`, 'SUCCESS', 'SYNC');
         return true;
@@ -144,29 +143,22 @@ const App: React.FC = () => {
     return null;
   }, [settings, isOnline, isSuper, activeCompanyId, transactions, accounts, products, entities, users, companies, categories, fetchMasterConfig, addLog]);
 
-  // Priority Auto-Sync Monitor: Trigger PUSH on critical changes if online
   useEffect(() => {
     if (!isInitialized || !isOnline || !settings.cloud.scriptUrl) return;
-    
-    // Clear existing timer to debounce
     if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current);
-    
-    // Set numeric timer ID for browser compatibility
     autoSyncTimerRef.current = window.setTimeout(() => {
-      addLog("Detecting activity... initiating auto-sync.", "INFO", "SYNC");
       syncToCloud('PUSH');
-    }, 3000); // 3 seconds after last activity
-
+    }, 3000); 
     return () => { if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current); };
-  }, [users, companies, transactions, isInitialized, isOnline, settings.cloud.scriptUrl, syncToCloud, addLog]);
+  }, [users, companies, transactions, isInitialized, isOnline, settings.cloud.scriptUrl, syncToCloud]);
 
   useEffect(() => {
-    const handleOnline = () => { setIsOnline(true); addLog("Network Recovered. Ready to sync.", "SUCCESS", "NETWORK"); };
-    const handleOffline = () => { setIsOnline(false); addLog("Network Offline. Switching to Local-First mode.", "WARN", "NETWORK"); };
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
-  }, [addLog]);
+  }, []);
 
   useEffect(() => {
     const init = async () => {
@@ -199,6 +191,14 @@ const App: React.FC = () => {
   }, [companies, users, transactions, accounts, products, entities, categories, isInitialized, settings, isLanding, isLocked, currentUserId]);
 
   const handleRegisterCompany = async (name: string, adminName: string, adminEmail: string, adminPass: string) => {
+    const emailLower = adminEmail.toLowerCase().trim();
+    
+    // CRITICAL: Duplicate Check Logic
+    const exists = users.some(u => u.email.toLowerCase() === emailLower);
+    if (exists) {
+      throw new Error("ALREADY_REGISTERED");
+    }
+
     const compId = crypto.randomUUID();
     const userId = crypto.randomUUID();
     const accId = crypto.randomUUID();
@@ -257,7 +257,7 @@ const App: React.FC = () => {
           {activeTab === 'reports' && <Reports transactions={companyTransactions} products={companyProducts} entities={companyEntities} accounts={companyAccounts} currencySymbol={CURRENCIES.find(c => c.code === settings.currency)?.symbol || 'Rs.'} />}
           {activeTab === 'parties' && <Parties entities={companyEntities} setEntities={setEntities} currencySymbol={CURRENCIES.find(c => c.code === settings.currency)?.symbol || 'Rs.'} transactions={companyTransactions} activeCompanyId={activeCompanyId} />}
           {activeTab === 'users' && <UserManagement users={companyUsers} setUsers={setUsers} currentUserRole={currentUser?.role || UserRole.STAFF} />}
-          {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} onRemoveInventoryTag={() => {}} onFetchCloud={() => syncToCloud('PULL')} cloudStatus={cloudStatus} />}
+          {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} onRemoveInventoryTag={(tag) => setSettings(prev => ({...prev, inventoryCategories: prev.inventoryCategories.filter(c => c !== tag)}))} onFetchCloud={() => syncToCloud('PULL')} cloudStatus={cloudStatus} />}
           {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} setUsers={setUsers} setCompanies={setCompanies} onRegister={handleRegisterCompany} onUpdateCompany={() => {}} transactions={transactions} accounts={accounts} settings={settings} isOnline={isOnline} onTriggerBackup={async () => await syncToCloud('PUSH')} onGlobalRefresh={() => syncToCloud('PULL')} isSyncing={isSyncing} onNotifyApproval={(u) => addLog(`User ${u.name} Authorized`, 'SUCCESS', 'ADMIN')} />}
           {activeTab === 'logs' && <SystemLogs logs={logs} onClear={() => setLogs([])} />}
       </main>
