@@ -215,6 +215,13 @@ const App: React.FC = () => {
     return userId;
   };
 
+  const handleClearLocalData = () => {
+    if (window.confirm("CRITICAL ACTION: This will purge all local data on this device. Your session and all locally cached information will be destroyed. Cloud data will remain safe. Proceed?")) {
+      localStorage.removeItem(STORAGE_KEY);
+      window.location.reload();
+    }
+  };
+
   const addTransaction = (txData: any) => {
     const newTx: Transaction = { ...txData, companyId: activeCompanyId, createdBy: currentUserId!, syncStatus: 'PENDING', version: 1, updatedAt: new Date().toISOString() };
     setTransactions(prev => [newTx, ...prev]);
@@ -257,7 +264,7 @@ const App: React.FC = () => {
           {activeTab === 'reports' && <Reports transactions={companyTransactions} products={companyProducts} entities={companyEntities} accounts={companyAccounts} currencySymbol={CURRENCIES.find(c => c.code === settings.currency)?.symbol || 'Rs.'} />}
           {activeTab === 'parties' && <Parties entities={companyEntities} setEntities={setEntities} currencySymbol={CURRENCIES.find(c => c.code === settings.currency)?.symbol || 'Rs.'} transactions={companyTransactions} activeCompanyId={activeCompanyId} />}
           {activeTab === 'users' && <UserManagement users={companyUsers} setUsers={setUsers} currentUserRole={currentUser?.role || UserRole.STAFF} />}
-          {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} onRemoveInventoryTag={(tag) => setSettings(prev => ({...prev, inventoryCategories: prev.inventoryCategories.filter(c => c !== tag)}))} onFetchCloud={() => syncToCloud('PULL')} cloudStatus={cloudStatus} />}
+          {activeTab === 'settings' && <Settings settings={settings} updateSettings={(s) => setSettings(p => ({...p, ...s}))} accounts={companyAccounts} setAccounts={setAccounts} categories={categories} setCategories={setCategories} onRemoveInventoryTag={(tag) => setSettings(prev => ({...prev, inventoryCategories: prev.inventoryCategories.filter(c => c !== tag)}))} onFetchCloud={() => syncToCloud('PULL')} cloudStatus={cloudStatus} onClearLocalData={handleClearLocalData} />}
           {activeTab === 'admin' && isSuper && <AdminPanel companies={companies} users={users} setUsers={setUsers} setCompanies={setCompanies} onRegister={handleRegisterCompany} onUpdateCompany={() => {}} transactions={transactions} accounts={accounts} settings={settings} isOnline={isOnline} onTriggerBackup={async () => await syncToCloud('PUSH')} onGlobalRefresh={() => syncToCloud('PULL')} isSyncing={isSyncing} onNotifyApproval={(u) => addLog(`User ${u.name} Authorized`, 'SUCCESS', 'ADMIN')} />}
           {activeTab === 'logs' && <SystemLogs logs={logs} onClear={() => setLogs([])} />}
       </main>

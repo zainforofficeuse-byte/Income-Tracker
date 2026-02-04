@@ -12,9 +12,10 @@ interface SettingsProps {
   onRemoveInventoryTag: (tag: string) => void;
   onFetchCloud: () => void;
   cloudStatus: { isConfigured: boolean; isNetworkUp: boolean; isServerResponding: boolean };
+  onClearLocalData: () => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ settings, updateSettings, accounts, setAccounts, categories, setCategories, onRemoveInventoryTag, onFetchCloud, cloudStatus }) => {
+const Settings: React.FC<SettingsProps> = ({ settings, updateSettings, accounts, setAccounts, categories, setCategories, onRemoveInventoryTag, onFetchCloud, cloudStatus, onClearLocalData }) => {
   const [activeTaxonomyTab, setActiveTaxonomyTab] = useState<TransactionType>(TransactionType.INCOME);
   const [newCategory, setNewCategory] = useState('');
 
@@ -108,6 +109,18 @@ const Settings: React.FC<SettingsProps> = ({ settings, updateSettings, accounts,
                  </div>
                ))}
             </div>
+         </div>
+      </section>
+
+      <section className="space-y-4">
+         <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest px-2">Critical Actions</p>
+         <div className="bg-rose-50/50 dark:bg-rose-950/10 rounded-[2.5rem] p-8 border border-rose-500/10 space-y-4">
+            <p className="text-[10px] text-rose-600 dark:text-rose-400 font-bold uppercase text-center tracking-tight leading-relaxed">
+               Warning: Purging local data will destroy all information cached on this device. Use this only if you wish to reset your local environment.
+            </p>
+            <button onClick={onClearLocalData} className="w-full py-5 bg-rose-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest active-scale shadow-xl shadow-rose-500/20 transition-all hover:bg-rose-600">
+               Purge Local Node (Local Only)
+            </button>
          </div>
       </section>
     </div>
