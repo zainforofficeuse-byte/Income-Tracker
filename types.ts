@@ -28,32 +28,26 @@ export interface User {
   password: string; 
   pin: string; 
   role: UserRole;
-  status: 'ACTIVE' | 'PENDING' | 'REJECTED'; // Added for approval logic
+  status: 'ACTIVE' | 'PENDING' | 'REJECTED';
   avatar?: string;
 }
 
-export interface PricingAdjustment {
+export interface SystemLog {
   id: string;
-  label: string;
-  type: 'FIXED' | 'PERCENT';
-  value: number;
-  isEnabled: boolean;
+  timestamp: string;
+  level: 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS';
+  message: string;
+  module: string;
 }
 
-export interface PricingRules {
-  fixedOverhead: number;
-  variableOverheadPercent: number;
-  platformFeePercent: number;
-  targetMarginPercent: number;
-  autoApply: boolean;
-  customAdjustments: PricingAdjustment[];
-}
-
-export interface DbCloudConfig {
-  scriptUrl: string; 
-  remoteConfigUrl?: string; 
-  autoSync: boolean;
-  isConnected: boolean;
+export interface EmailSettings {
+  adminEmail: string;
+  smtpHost?: string;
+  smtpUser?: string;
+  smtpPass?: string;
+  notifyAdminOnNewReg: boolean;
+  notifyUserOnStatusChange: boolean;
+  notifySecurityAlerts: boolean;
 }
 
 export interface UserSettings {
@@ -63,8 +57,21 @@ export interface UserSettings {
   companyName: string;
   inventoryCategories: string[];
   remoteDbConnected: boolean;
-  pricingRules: PricingRules;
-  cloud: DbCloudConfig; 
+  pricingRules: {
+    fixedOverhead: number;
+    variableOverheadPercent: number;
+    platformFeePercent: number;
+    targetMarginPercent: number;
+    autoApply: boolean;
+    customAdjustments: any[];
+  };
+  cloud: {
+    scriptUrl: string;
+    remoteConfigUrl?: string;
+    autoSync: boolean;
+    isConnected: boolean;
+  };
+  email: EmailSettings;
 }
 
 export interface Product {
@@ -128,7 +135,7 @@ export interface Account {
   type: 'CASH' | 'BANK' | 'CREDIT';
 }
 
-export type Tab = 'dashboard' | 'ledger' | 'inventory' | 'parties' | 'add' | 'reports' | 'admin' | 'settings' | 'users';
+export type Tab = 'dashboard' | 'ledger' | 'inventory' | 'parties' | 'add' | 'reports' | 'admin' | 'settings' | 'users' | 'logs';
 
 export const DEFAULT_CATEGORIES: Record<TransactionType, string[]> = {
   [TransactionType.EXPENSE]: ['Inventory Purchase', 'Marketing', 'Payroll', 'Rent/Office', 'Shipping', 'Utilities'],
